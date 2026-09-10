@@ -46,6 +46,7 @@ numeric_validation:
 # --- AI (optional) ---
 ai_enabled: false
 ai_model: put ai model here
+ai_api_key: put api key here
 ai_provider: anthropic
 ai_connection_test_prompt: "Respond with the single word OK."
 
