@@ -1,0 +1,32 @@
+Item ID;Item Name;Item Category;Base UoM;Tracking Group;Storage Group;Lead Time
+Item_01;Executive Wooden Desk 160x80;Finished Furniture;pcs;Serial;WH;14
+Item_02;Ergonomic Office Chair Black;Hardware & Fasteners;pcs;Serial;WH;10
+Item_03;3-Door Wardrobe with Mirror;Finished Furniture;pcs;Serial;WH;21
+Item_04;Coffee Table Light Oak;Finished Furniture;pcs;Serial;WH;7
+Item_05;Kitchen Dining Table Round;Finished Furniture;pcs;Serial;WH;12
+Item_06;Upholstered Fabric Sofa 3-Seater;Finished Furniture;pcs;Serial;WH;25
+Item_07;Bookshelf 5-Tier Walnut;Finished Furniture;pcs;Serial;WH;10
+Item_08;Bed Frame King Size Storage;Finished Furniture;pcs;Serial;WH;18
+Item_09;Bedside Table 2-Drawers;Finished Furniture;pcs;Serial;WH;5
+Item_10;Smart Wardrobe with LED Sensor;Finished Furniture;pcs;Serial;WH;28
+Item_11;Single Core PVC Wire 1.5 sqmm;Electrical Components;m;Lot;WH_Loc;3
+Item_12;LED Strip Light Warm White 12V;Electrical Components;m;Lot;WH_Loc;5
+Item_13;Power Cable 3x2.5 sqmm;Electrical Components;m;Lot;WH_Loc;4
+Item_14;Flexible Conduit Hose 20mm;Electrical Components;m;Lot;WH_Loc;3
+Item_15;LED Driver Transformer 60W;Electrical Components;pcs;Lot;WH_Loc;5
+Item_16;Recessed LED Spotlight 5W;Electrical Components;pcs;Lot;WH_Loc;7
+Item_17;Touch Dimmer Switch 12-24V;Electrical Components;pcs;Lot;WH_Loc;10
+Item_18;Laminated MDF Board 18mm Oak;Raw Materials;sqm;NotUsed;WH_Loc;7
+Item_19;Plywood Sheet 12mm Birch;Raw Materials;sqm;NotUsed;WH_Loc;6
+Item_20;Tempered Glass Panel 6mm;Raw Materials;sqm;NotUsed;WH_Loc;12
+Item_21;Wood PVA Glue Waterproof;Raw Materials;l;NotUsed;WH_Loc;2
+Item_22;Polyurethane Wood Lacquer Clear;Raw Materials;l;NotUsed;WH_Loc;4
+Item_23;Edge Banding Tape PVC 21mm;Raw Materials;m;NotUsed;WH_Loc;3
+Item_24;Steel Tube Frame 40x40mm;Raw Materials;m;NotUsed;WH_Loc;8
+Item_25;Furniture Screw 4x16mm;Hardware & Fasteners;pcs;Lot;WH_Loc;2
+Item_26;Concentric Cam Lock & Dowel;Hardware & Fasteners;set;Lot;WH_Loc;3
+Item_27;Hydraulic Door Hinge 110 Deg;Hardware & Fasteners;pcs;Lot;WH_Loc;5
+Item_28;Ball Bearing Drawer Runner 450mm;Hardware & Fasteners;pair;Lot;WH_Loc;6
+Item_29;Cabinet Door Handle Matte Black;Hardware & Fasteners;pcs;Lot;WH_Loc;7
+Item_30;Adjustable Furniture Leg 100mm;Hardware & Fasteners;pcs;Lot;WH_Loc;4
+Item_31;Wood Dowel Pins 8x40mm;Hardware & Fasteners;pcs;Lot;WH_Loc;2

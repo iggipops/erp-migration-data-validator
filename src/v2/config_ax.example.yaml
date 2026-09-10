@@ -1,0 +1,88 @@
+# ---------------------------------------------------------------------------
+# dimpolicy_ax.xlsx — pure item-level dimension policy (AX / D365 shape).
+#
+# A single lookup block (FS B.3 / Appendix D, second example): the policy key
+# is composed from two columns of the same matched Item Master row — Tracking
+# Group and Storage Group — joined by "|". No second lookup block is needed
+# because dimension control is entirely an item attribute in this ERP.
+#
+# Run from the repository root:
+#   python src/v2/erp_migration_data_validator.py --config src/v2/config_ax.yaml
+# ---------------------------------------------------------------------------
+
+# --- Framework (mandatory) ---
+input_file: test_data/v2/demo/dimpolicy_ax.xlsx
+output_file: output/v2/dimpolicy_ax_result.xlsx
+log_file: etc/logs/dimpolicy_ax.log
+custom_functions_directory: src/v2/functions/custom/
+
+# --- Formatting (optional) ---
+format_special_chars: "!@#$%^&*()"
+predefined_colors:
+  CRIMSON: "#D64550"
+  AMBER: "#F28E2B"
+  GOLD: "#EDC948"
+  SAGE: "#59A14F"
+  CORNFLOWER: "#4472C4"
+  PURPLE: "#9B59B6"
+  TEAL: "#17A2B8"
+
+numeric_validation:
+  decimal_separator: "."
+  thousands_separator: ","
+  min_value: 0
+  max_value: 999999999
+
+#date_validation:
+#  accepted_formats:
+#    - "%d.%m.%Y"
+#    - "%Y-%m-%d"
+#  min_date: "1900-01-02"
+#  max_date: "2154-12-31"
+#  null_dates:
+#    - "1900-01-01"
+#  treat_null_dates_as: "empty"
+
+# --- AI (optional) ---
+ai_enabled: false
+ai_model: put ai model here
+ai_provider: anthropic
+ai_connection_test_prompt: "Respond with the single word OK."
+
+ai_provider_settings:
+  anthropic:
+    ai_endpoint: https://api.anthropic.com/v1/messages
+    ai_api_version: "2023-06-01"
+
+# --- Custom Functions (optional) ---
+custom_functions:
+  dimpolicyvalidation:
+    policy_key_lookups:
+      - source_column: Item ID
+        reference_sheet: ItemsMaster
+        reference_key_column: Item ID
+        policy_key_columns:
+          - Tracking Group
+          - Storage Group
+    dim_policy_key_delimiter: "|"
+    dim_policy_sheet: DimPolicy
+    dim_policy_key_column: DimPolicySetUp
+    stock_to_dim_policy_columns_mapping:
+      Lot Number: Lot Number
+      Serial Number: Serial Number
+      Location ID: Location ID
+    stock_quantity_column: On-Hand
+  ai_itemcategoryfit:
+    prompt: "Evaluate whether the item name is relevant to the assigned
+      category description. If not, recommend a better-fitting category
+      from the supplied category list, using its name exactly as given
+      in that list. If no category in the supplied list fits the item
+      at all, say so directly rather than forcing a recommendation from
+      the list."
+    source_sheet: ItemsMaster
+    source_key_column: Item Category
+    source_text_column: Item Name
+    reference_sheet: CategoriesMaster
+    reference_key_column: Item Category
+    reference_text_column: Item Category
+    batch_size: 20

@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+/output/
+*.log
+config.yaml
+config*.yaml
+!config.example.yaml
+!config_ax.example.yaml
+!config_universal.example.yaml
+.pytest_cache/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.egg-info/
