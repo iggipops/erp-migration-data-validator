@@ -48,6 +48,24 @@ def test_warning_severity_increments_warning_counter(make_workbook, fake_config)
     assert iw.error_counter == 0
 
 
+def test_record_leading_equals_cell_content_not_written_as_formula(make_workbook, fake_config):
+    """cell_content originating as flagged text (e.g. '=HYPERLINK(...)' from
+    an external CSV) must be stored as literal text in the Issues sheet, not
+    a live formula (formula/CSV injection guard)."""
+    wb = make_workbook()
+    sheet = wb.create_sheet("Items")
+    sheet.append(["Note"])
+    sheet.append(['=HYPERLINK("http://evil")'])
+    iw = IssuesWriter(wb, fake_config)
+    rule = {"RuleCode": "R1", "RuleName": "Rule", "Severity": "ERROR", "Color": "RED"}
+    cell = sheet.cell(row=2, column=1)
+    iw.record(cell=cell, rule=rule, sheet_name="Items", column_name="Note",
+               row_number=2, cell_content='=HYPERLINK("http://evil")')
+    content_cell = wb["Issues"].cell(row=2, column=5)
+    assert content_cell.data_type == "s"
+    assert content_cell.value == '=HYPERLINK("http://evil")'
+
+
 def test_record_highlights_cell(make_workbook, fake_config):
     wb = make_workbook()
     sheet = wb.create_sheet("Items")

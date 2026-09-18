@@ -1,3 +1,5 @@
+from utils.parsing import parse_bool
+
 REQUIRED_PARAMS = ["columns"]
 
 
@@ -15,7 +17,7 @@ def concatenate(context: dict) -> list:
     params    = context.get("technical_config", {})
     columns   = params.get("columns", [])
     separator = str(params.get("separator", ""))
-    trim      = bool(params.get("trim", True))
+    trim      = parse_bool(params.get("trim", True), field_name="trim")
 
     # Handle both string (single value) and list (multiple values)
     if isinstance(columns, str):

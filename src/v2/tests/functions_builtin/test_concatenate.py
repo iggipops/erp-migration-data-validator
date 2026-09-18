@@ -34,6 +34,34 @@ def test_trim_false_preserves_whitespace():
     assert concatenate(ctx) == [" x "]
 
 
+def test_trim_quoted_string_false_preserves_whitespace():
+    """Regression: trim="false" (as parsed from a FunctionArguments cell
+    like 'trim=false') must not be coerced via Python's bool(), which
+    treats any non-empty string (including "false") as truthy."""
+    ctx = {
+        "named_columns": {"A": [" x "]},
+        "technical_config": {"columns": ["A"], "trim": "false"},
+    }
+    assert concatenate(ctx) == [" x "]
+
+
+def test_trim_quoted_string_true_strips_whitespace():
+    ctx = {
+        "named_columns": {"A": [" x "]},
+        "technical_config": {"columns": ["A"], "trim": "true"},
+    }
+    assert concatenate(ctx) == ["x"]
+
+
+def test_trim_unrecognized_string_raises():
+    ctx = {
+        "named_columns": {"A": [" x "]},
+        "technical_config": {"columns": ["A"], "trim": "maybe"},
+    }
+    with pytest.raises(ValueError):
+        concatenate(ctx)
+
+
 def test_none_and_nan_become_empty_string():
     ctx = {
         "named_columns": {"A": [None, float("nan")], "B": ["x", "y"]},

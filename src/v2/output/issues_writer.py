@@ -3,7 +3,7 @@ from openpyxl.workbook import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
 from config.config_loader import AppConfig, ISSUES_SHEET
-from workbook.excel_utils import remove_sheet_if_exists
+from workbook.excel_utils import append_row_safe, remove_sheet_if_exists
 from utils.logger import get_logger
 
 
@@ -58,7 +58,7 @@ class IssuesWriter:
         elif severity == "WARNING":
             self.warning_counter += 1
 
-        self._sheet.append([
+        append_row_safe(self._sheet, [
             self.issue_counter,
             sheet_name,
             column_name,

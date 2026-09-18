@@ -1,3 +1,5 @@
+from datetime import date
+
 import yaml
 import pytest
 from openpyxl import Workbook
@@ -117,6 +119,56 @@ def test_numeric_validation_min_after_max_raises(tmp_path):
         ConfigLoader().load(cfg_path, _provider_registry)
 
 
+def test_numeric_validation_non_numeric_min_value_raises_config_error(tmp_path):
+    """A non-numeric min_value/max_value (e.g. a stray text string from
+    YAML) must be reported as a normal config validation error, not crash
+    the loader with an unhandled TypeError from the min_v > max_v comparison."""
+    data = base_config_dict(tmp_path)
+    data["numeric_validation"] = {"min_value": "not-a-number", "max_value": 100}
+    cfg_path = write_config(tmp_path, data)
+    with pytest.raises(ValueError, match="must both be numeric"):
+        ConfigLoader().load(cfg_path, _provider_registry)
+
+
+def test_date_validation_unquoted_yaml_date_normalized_to_string(tmp_path):
+    """An unquoted YAML date (e.g. min_date: 1900-01-02) is parsed by
+    PyYAML into a native date object, not a string — the loader must
+    normalize it to 'YYYY-MM-DD' so it doesn't crash the DATE validator
+    later, which expects a string it can strptime()."""
+    data = base_config_dict(tmp_path)
+    # yaml.safe_dump serializes a real date object the same way PyYAML
+    # would parse an unquoted date in a hand-written config.yaml.
+    data["date_validation"] = {"min_date": date(1900, 1, 2), "max_date": date(2100, 1, 1)}
+    cfg_path = write_config(tmp_path, data)
+    config = ConfigLoader().load(cfg_path, _provider_registry)
+    assert config.date_validation["min_date"] == "1900-01-02"
+    assert config.date_validation["max_date"] == "2100-01-01"
+
+
+def test_date_validation_null_dates_as_yaml_date_objects_normalized(tmp_path):
+    data = base_config_dict(tmp_path)
+    data["date_validation"] = {"null_dates": [date(1900, 1, 1), "1999-12-31"]}
+    cfg_path = write_config(tmp_path, data)
+    config = ConfigLoader().load(cfg_path, _provider_registry)
+    assert config.date_validation["null_dates"] == ["1900-01-01", "1999-12-31"]
+
+
+def test_date_validation_min_after_max_detected_with_date_objects(tmp_path):
+    data = base_config_dict(tmp_path)
+    data["date_validation"] = {"min_date": date(2025, 12, 31), "max_date": date(2025, 1, 1)}
+    cfg_path = write_config(tmp_path, data)
+    with pytest.raises(ValueError, match="min_date"):
+        ConfigLoader().load(cfg_path, _provider_registry)
+
+
+def test_date_validation_invalid_string_format_raises(tmp_path):
+    data = base_config_dict(tmp_path)
+    data["date_validation"] = {"min_date": "02-01-1900"}
+    cfg_path = write_config(tmp_path, data)
+    with pytest.raises(ValueError, match="min_date"):
+        ConfigLoader().load(cfg_path, _provider_registry)
+
+
 def test_numeric_validation_same_decimal_and_thousands_sep_raises(tmp_path):
     data = base_config_dict(tmp_path)
     data["numeric_validation"] = {"decimal_separator": ",", "thousands_separator": ","}
@@ -220,6 +272,39 @@ def test_ai_disabled_does_not_require_model_or_key(tmp_path):
     cfg_path = write_config(tmp_path, data)
     config = ConfigLoader().load(cfg_path, _provider_registry)
     assert config.ai_enabled is False
+
+
+def test_ai_enabled_quoted_string_false_is_treated_as_false(tmp_path):
+    """Regression: a quoted YAML string 'false' must not be coerced via
+    Python's bool(), which treats any non-empty string (including "false")
+    as truthy."""
+    data = base_config_dict(tmp_path)
+    data["ai_enabled"] = "false"
+    cfg_path = write_config(tmp_path, data)
+    config = ConfigLoader().load(cfg_path, _provider_registry)
+    assert config.ai_enabled is False
+
+
+def test_ai_enabled_quoted_string_true_is_treated_as_true(tmp_path):
+    data = base_config_dict(tmp_path)
+    data["ai_enabled"] = "true"
+    data["ai_model"] = "gpt-4o"
+    data["ai_api_key"] = "secret"
+    data["ai_provider"] = "anthropic"
+    data["ai_provider_settings"] = {
+        "anthropic": {"ai_endpoint": "https://example.test", "ai_api_version": "v1"}
+    }
+    cfg_path = write_config(tmp_path, data)
+    config = ConfigLoader().load(cfg_path, _provider_registry)
+    assert config.ai_enabled is True
+
+
+def test_ai_enabled_unrecognized_string_raises_config_error(tmp_path):
+    data = base_config_dict(tmp_path)
+    data["ai_enabled"] = "enabled-ish"
+    cfg_path = write_config(tmp_path, data)
+    with pytest.raises(ValueError, match="ai_enabled"):
+        ConfigLoader().load(cfg_path, _provider_registry)
 
 
 def test_ai_connection_test_prompt_loaded(tmp_path):

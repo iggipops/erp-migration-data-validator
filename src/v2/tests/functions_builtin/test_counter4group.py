@@ -41,3 +41,14 @@ def test_string_param_normalized_to_list():
     df = pd.DataFrame({"Warehouse": ["WH1", "WH1"]})
     ctx = {"worksheet_data": df, "technical_config": {"grouping_columns": "Warehouse"}}
     assert counter4group(ctx) == [1, 2]
+
+
+def test_counter_values_are_python_ints_not_floats():
+    """Regression: cumcount() can promote the result to float64 (e.g. when
+    pandas needs a common dtype); the returned counters must always be
+    plain ints, matching the documented 1-based integer counter (FS 7.1.3)."""
+    df = pd.DataFrame({"Warehouse": ["WH1", "WH1", "WH2", "WH1"], "Item": ["A", "B", "C", "D"]})
+    ctx = {"worksheet_data": df, "technical_config": {"grouping_columns": ["Warehouse"]}}
+    result = counter4group(ctx)
+    assert all(isinstance(v, int) for v in result)
+    assert not any(isinstance(v, float) for v in result)

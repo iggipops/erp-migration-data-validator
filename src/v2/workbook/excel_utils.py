@@ -133,6 +133,32 @@ def sheet_to_dataframe(sheet: Worksheet) -> pd.DataFrame:
 # Value helpers
 # ---------------------------------------------------------------------------
 
+# Leading characters that Excel may interpret as a formula/expression trigger
+# (the classic CSV/formula-injection set), guarded against in append_row_safe().
+_FORMULA_TRIGGER_CHARS = ("=", "+", "-", "@")
+
+
+def append_row_safe(sheet: Worksheet, values: list) -> None:
+    """
+    Append a row of values the tool itself is writing (not values read as
+    genuine formulas from an input workbook), forcing any string starting
+    with =, +, -, or @ to be stored as literal text.
+
+    openpyxl auto-detects a leading "=" and stores the cell as a live
+    formula (data_type 'f'); +, -, and @ are not auto-detected by openpyxl
+    but are still formula triggers when the file is opened in Excel. A
+    string value like "=HYPERLINK(...)" copied verbatim from an external
+    CSV must never become a live/interpreted formula in our output —
+    explicitly setting data_type to string ('s') prevents that regardless
+    of the leading character.
+    """
+    sheet.append(values)
+    row_idx = sheet.max_row
+    for col_idx, value in enumerate(values, start=1):
+        if isinstance(value, str) and value[:1] in _FORMULA_TRIGGER_CHARS:
+            sheet.cell(row=row_idx, column=col_idx).data_type = "s"
+
+
 def is_empty(value) -> bool:
     """
     True if value is None, a whitespace-only string, or the text "nan"

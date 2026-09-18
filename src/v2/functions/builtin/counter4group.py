@@ -55,4 +55,4 @@ def counter4group(context: dict) -> list:
     # Restore original row order
     working = working.sort_values("_original_index")
 
-    return working["_group_counter"].tolist()
+    return working["_group_counter"].astype("int64").tolist()

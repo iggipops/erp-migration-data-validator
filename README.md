@@ -58,11 +58,15 @@ mkdir -p output/v2
 
 ## Usage
 
+Run from the repository root, so that the paths you set in `config.yaml` (input workbook, output file, custom functions directory) resolve correctly:
+
 ```bash
-python src/v2/erp_migration_data_validator.py --config config.yaml
+python src/v2/erp_migration_data_validator.py
 ```
 
-`--config` is optional — if omitted, the tool looks for `config.yaml` in the same directory as the script itself.
+With no `--config` flag, the tool looks for `config.yaml` next to the script itself (`src/v2/config.yaml`) — which is exactly where the Configuration step above puts it, regardless of your current directory.
+
+`--config` accepts a path to use a different config file instead, resolved relative to wherever you run the command from (not relative to the script) — for example `--config /path/to/other-config.yaml`.
 
 The tool copies your input workbook to the configured output path, applies enrichments and validations in sequence, and writes the results back into that output file — the original input is never modified.
 
@@ -70,7 +74,7 @@ The tool copies your input workbook to the configured output path, applies enric
 
 The full behavior of the tool — every validation type, configuration field, and processing rule — is documented in the Functional Specification:
 
-- [`functional_spec/erp_migration_data_validator_fs_v2_6_r3.md`](functional_spec/erp_migration_data_validator_fs_v2_6_r3.md)
+- [`functional_spec/`](functional_spec/) — the current version is the single file in that folder
 
 ## License
 

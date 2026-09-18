@@ -168,6 +168,76 @@ def test_ai_rule_executed_status_when_all_batches_succeed(make_workbook, sheet_f
     assert stats[0]["rows_unchecked"] == 0
 
 
+def test_rule_depending_on_failed_enrichment_column_is_skipped(make_workbook, sheet_factory, fake_config,
+                                                                  issues_writer_factory, fn_registry, vtype_registry):
+    wb = make_workbook()
+    sheet_factory(wb, "Items", [["ItemId"], ["A1"]])
+    iw = issues_writer_factory(wb, fake_config)
+    engine = ValidationEngine(wb, fake_config, fn_registry, vtype_registry, iw)
+    rule = make_rule(SheetName="Items", ColumnName="ItemId")
+    stats = engine.execute([rule], failed_enrichment_columns={("items", "itemid")})
+    assert stats[0]["status"] == "skipped"
+
+
+def test_rule_depending_on_failed_enrichment_column_matched_case_insensitively(
+        make_workbook, sheet_factory, fake_config, issues_writer_factory, fn_registry, vtype_registry):
+    wb = make_workbook()
+    sheet_factory(wb, "Items", [["ItemId"], ["A1"]])
+    iw = issues_writer_factory(wb, fake_config)
+    engine = ValidationEngine(wb, fake_config, fn_registry, vtype_registry, iw)
+    rule = make_rule(SheetName="ITEMS", ColumnName="itemID")
+    stats = engine.execute([rule], failed_enrichment_columns={("items", "itemid")})
+    assert stats[0]["status"] == "skipped"
+
+
+def test_rule_same_column_name_different_sheet_is_not_skipped(
+        make_workbook, sheet_factory, fake_config, issues_writer_factory, fn_registry, vtype_registry):
+    """Regression: the failed-enrichment dependency skip must be scoped per
+    worksheet — a column name that only collides with a failed enrichment's
+    TargetColumn on a *different* sheet must not cause a false-positive skip."""
+    wb = make_workbook()
+    sheet_factory(wb, "Items", [["ItemId"], [None]])
+    iw = issues_writer_factory(wb, fake_config)
+    engine = ValidationEngine(wb, fake_config, fn_registry, vtype_registry, iw)
+    rule = make_rule(SheetName="Items", ColumnName="ItemId")
+    # "ItemId" failed on sheet "Other", not on this rule's own sheet "Items"
+    stats = engine.execute([rule], failed_enrichment_columns={("other", "itemid")})
+    assert stats[0]["status"] == "executed"
+    assert stats[0]["issue_count"] == 1
+
+
+def test_reference_rule_dependency_scoped_to_reference_data_sheet(
+        make_workbook, sheet_factory, fake_config, issues_writer_factory, fn_registry, vtype_registry):
+    wb = make_workbook()
+    sheet_factory(wb, "Items", [["ItemId"], ["A1"]])
+    sheet_factory(wb, "CategoryMaster", [["CategoryId"], ["C1"]])
+    iw = issues_writer_factory(wb, fake_config)
+    engine = ValidationEngine(wb, fake_config, fn_registry, vtype_registry, iw)
+    rule = make_rule(
+        ValidationType="REFERENCE", ColumnName="ItemId",
+        ReferenceDataSheet="CategoryMaster", ReferenceDataColumn="CategoryId",
+    )
+    stats = engine.execute([rule], failed_enrichment_columns={("categorymaster", "categoryid")})
+    assert stats[0]["status"] == "skipped"
+
+
+def test_duplicate2_rule_dependency_scoped_to_own_sheet(
+        make_workbook, sheet_factory, fake_config, issues_writer_factory, fn_registry, vtype_registry):
+    """DUPLICATE2's ReferenceDataColumn is a second column on the *same*
+    sheet (FS 6.4), not on ReferenceDataSheet — the dependency check must
+    scope to the rule's own SheetName, not to an unrelated sheet of the
+    same column name."""
+    wb = make_workbook()
+    sheet_factory(wb, "Items", [["ItemId", "WarehouseId"], ["A1", "W1"]])
+    iw = issues_writer_factory(wb, fake_config)
+    engine = ValidationEngine(wb, fake_config, fn_registry, vtype_registry, iw)
+    rule = make_rule(
+        ValidationType="DUPLICATE2", ColumnName="ItemId", ReferenceDataColumn="WarehouseId",
+    )
+    stats = engine.execute([rule], failed_enrichment_columns={("items", "warehouseid")})
+    assert stats[0]["status"] == "skipped"
+
+
 def test_unrelated_rule_still_executes_when_other_sheet_failed(make_workbook, sheet_factory, fake_config,
                                                                  issues_writer_factory, fn_registry, vtype_registry):
     wb = make_workbook()

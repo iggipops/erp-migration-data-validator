@@ -1,11 +1,13 @@
 import os
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 from utils.logger import get_logger
+from utils.parsing import parse_bool
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +202,11 @@ class ConfigLoader:
                 predefined_colors[upper_name] = upper_hex
 
         # --- AI (optional) ---
-        ai_enabled  = bool(raw.get("ai_enabled", False))
+        try:
+            ai_enabled = parse_bool(raw.get("ai_enabled", False), field_name="ai_enabled")
+        except ValueError as exc:
+            errors.append(str(exc))
+            ai_enabled = False
         ai_model    = raw.get("ai_model", None)
         ai_api_key  = raw.get("ai_api_key", None)
 
@@ -249,12 +255,28 @@ class ConfigLoader:
         # --- Date Validation (optional unless ValidationType=DATE is used) ---
         date_validation: dict[str, Any] = raw.get("date_validation", {}) or {}
         if date_validation:
-            from datetime import datetime as _dt
+            # min_date/max_date/null_dates may arrive from YAML as either a
+            # native date/datetime object (unquoted "2025-01-01") or a plain
+            # string — normalize all of them to "%Y-%m-%d" strings here so
+            # every downstream consumer (this comparison, and the DATE
+            # validator) sees one consistent representation.
+            for date_field in ("min_date", "max_date"):
+                if date_validation.get(date_field) is not None:
+                    date_validation[date_field] = self._normalize_date_value(
+                        date_validation[date_field], date_field, errors
+                    )
+            raw_null_dates = date_validation.get("null_dates") or []
+            if raw_null_dates:
+                date_validation["null_dates"] = [
+                    self._normalize_date_value(nd, "null_dates", errors)
+                    for nd in raw_null_dates
+                ]
+
             min_d = date_validation.get("min_date")
             max_d = date_validation.get("max_date")
             if min_d and max_d:
                 try:
-                    if _dt.strptime(str(min_d), "%Y-%m-%d") > _dt.strptime(str(max_d), "%Y-%m-%d"):
+                    if datetime.strptime(min_d, "%Y-%m-%d") > datetime.strptime(max_d, "%Y-%m-%d"):
                         errors.append(
                             f"date_validation: min_date ({min_d}) is after "
                             f"max_date ({max_d})"
@@ -267,11 +289,21 @@ class ConfigLoader:
         if numeric_validation:
             min_v = numeric_validation.get("min_value")
             max_v = numeric_validation.get("max_value")
-            if min_v is not None and max_v is not None and min_v > max_v:
-                errors.append(
-                    f"numeric_validation: min_value ({min_v}) is greater than "
-                    f"max_value ({max_v})"
-                )
+            if min_v is not None and max_v is not None:
+                try:
+                    min_v_num = float(min_v)
+                    max_v_num = float(max_v)
+                except (TypeError, ValueError):
+                    errors.append(
+                        f"numeric_validation: min_value ({min_v!r}) and max_value "
+                        f"({max_v!r}) must both be numeric"
+                    )
+                else:
+                    if min_v_num > max_v_num:
+                        errors.append(
+                            f"numeric_validation: min_value ({min_v}) is greater than "
+                            f"max_value ({max_v})"
+                        )
             dec_sep   = numeric_validation.get("decimal_separator", ".")
             thou_sep  = numeric_validation.get("thousands_separator")
             if thou_sep and dec_sep and str(thou_sep) == str(dec_sep):
@@ -331,3 +363,30 @@ class ConfigLoader:
             errors.append(f"'{key}' is required but missing or empty")
             return None
         return str(value).strip()
+
+    def _normalize_date_value(self, value: Any, field_name: str, errors: list[str]) -> str | None:
+        """
+        Normalize a date_validation value (min_date/max_date/null_dates entry)
+        to a "%Y-%m-%d" string. PyYAML parses an unquoted date like
+        1900-01-02 into a native date/datetime object rather than a string;
+        accept both so the validator always receives one consistent type.
+        """
+        if isinstance(value, datetime):
+            return value.strftime("%Y-%m-%d")
+        if isinstance(value, date):
+            return value.strftime("%Y-%m-%d")
+        if isinstance(value, str):
+            try:
+                datetime.strptime(value, "%Y-%m-%d")
+            except ValueError:
+                errors.append(
+                    f"date_validation: {field_name} ({value!r}) is not a valid "
+                    f"date in YYYY-MM-DD format"
+                )
+                return None
+            return value
+        errors.append(
+            f"date_validation: {field_name} must be a date or a 'YYYY-MM-DD' "
+            f"string, got {type(value).__name__}"
+        )
+        return None

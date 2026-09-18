@@ -105,6 +105,22 @@ def test_import_spec_numeric_conversion_applied(make_workbook, fake_config, tmp_
     assert wb["Items"].cell(row=2, column=2).value == 1234.56
 
 
+def test_leading_equals_value_not_written_as_formula(make_workbook, fake_config, tmp_path):
+    """A text value like '=HYPERLINK(...)' copied verbatim from an external
+    CSV must be stored as literal text, not a live formula (formula/CSV
+    injection guard)."""
+    f = tmp_path / "items.csv"
+    f.write_text('ItemId,Note\nA1,"=HYPERLINK(""http://evil"")"\n')
+    wb = make_workbook()
+    imp = Importer(wb, fake_config)
+    rules = [{"SequenceNum": 1, "SheetName": "Items", "FilePath": str(f),
+              "Format": "csv", "Active": "Yes", "CSVDelimiter": ",", "OriginalSheetName": ""}]
+    imp.import_external_files(rules, [])
+    cell = wb["Items"].cell(row=2, column=2)
+    assert cell.data_type == "s"
+    assert cell.value == '=HYPERLINK("http://evil")'
+
+
 def test_import_spec_column_matched_case_insensitively(make_workbook, fake_config, tmp_path):
     f = tmp_path / "items.csv"
     f.write_text("ItemId,qty\nA1,5\n")

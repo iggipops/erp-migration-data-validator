@@ -7,6 +7,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from __version__ import __version__
+
 
 def parse_args() -> str:
     # FS 3.1: if --config is omitted, look for config.yaml next to the
@@ -19,6 +21,11 @@ def parse_args() -> str:
         "--config",
         default=default_config,
         help="Path to YAML configuration file (default: config.yaml in the executable's directory)"
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}"
     )
     return parser.parse_args().config
 
@@ -60,7 +67,7 @@ def main() -> int:
     from utils.logger import setup_logger, get_logger
     bootstrap_logger = setup_logger()
     bootstrap_logger.info("=" * 60)
-    bootstrap_logger.info("ERP Migration Data Validator V2 — starting")
+    bootstrap_logger.info(f"ERP Migration Data Validator V2 — starting (version {__version__})")
     bootstrap_logger.info(f"Config: {config_path}")
 
     bootstrap_logger.info("Step 1 — Building AI Provider Registry")
@@ -251,10 +258,16 @@ def main() -> int:
     # 9  Execute validations in SequenceNum order (FS 8.9)
     # -----------------------------------------------------------------------
     from engine.validation_engine import ValidationEngine
+    from workbook.excel_utils import normalize_string
 
-    # Collect TargetColumns of enrichment rules that failed at runtime (FS 2.5.3)
+    # Collect (SheetName, TargetColumn) of enrichment rules that failed at
+    # runtime (FS 2.5.3), scoped per worksheet and matched case-insensitively
+    # (FS section 9 — column/worksheet names are case-insensitive framework-
+    # wide) so a column name that happens to collide with an unrelated
+    # column of the same name on a different sheet isn't treated as a
+    # dependency.
     failed_enrichment_columns = {
-        stat["ColumnName"]
+        (normalize_string(stat["SheetName"]), normalize_string(stat["ColumnName"]))
         for stat in enrichment_stats
         if stat["status"] == "failed" and stat["ColumnName"]
     }

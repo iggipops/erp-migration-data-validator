@@ -2,7 +2,7 @@ import pytest
 from workbook.excel_utils import (
     is_empty, is_numeric_null, normalize_string, get_headers, get_headers_lower,
     find_sheet_name, sheet_exists, get_sheet, get_or_create_sheet,
-    remove_sheet_if_exists, find_column_index,
+    remove_sheet_if_exists, find_column_index, append_row_safe,
 )
 
 
@@ -153,3 +153,37 @@ def test_find_column_index_not_found(make_workbook, sheet_factory):
     sheet_factory(wb, "Items", [["ItemId"]])
     headers = get_headers(wb["Items"])
     assert find_column_index(headers, "NoSuchColumn") is None
+
+
+# --- append_row_safe: guard against formula/CSV injection ---
+
+def test_append_row_safe_leading_equals_stored_as_text(make_workbook):
+    wb = make_workbook()
+    ws = wb.create_sheet("Items")
+    append_row_safe(ws, ['=HYPERLINK("http://evil")'])
+    cell = ws.cell(row=1, column=1)
+    assert cell.data_type == "s"
+    assert cell.value == '=HYPERLINK("http://evil")'
+
+
+@pytest.mark.parametrize("prefix", ["=", "+", "-", "@"])
+def test_append_row_safe_all_trigger_chars_stored_as_text(make_workbook, prefix):
+    wb = make_workbook()
+    ws = wb.create_sheet("Items")
+    append_row_safe(ws, [f"{prefix}cmd|calc"])
+    assert ws.cell(row=1, column=1).data_type == "s"
+
+
+def test_append_row_safe_normal_values_unaffected(make_workbook):
+    wb = make_workbook()
+    ws = wb.create_sheet("Items")
+    append_row_safe(ws, ["A1", 5, None])
+    assert [c.value for c in ws[1]] == ["A1", 5, None]
+
+
+def test_append_row_safe_appends_after_existing_rows(make_workbook):
+    wb = make_workbook()
+    ws = wb.create_sheet("Items")
+    ws.append(["Header"])
+    append_row_safe(ws, ["=SUM(A1)"])
+    assert ws.cell(row=2, column=1).data_type == "s"

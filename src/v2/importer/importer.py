@@ -16,7 +16,7 @@ from openpyxl.workbook import Workbook
 
 from config.config_loader import AppConfig
 from importer.conversion import convert_date, convert_numeric, convert_integer
-from workbook.excel_utils import remove_sheet_if_exists
+from workbook.excel_utils import append_row_safe, remove_sheet_if_exists
 from utils.logger import get_logger
 
 
@@ -240,8 +240,10 @@ class Importer:
 
         # Data rows — native Python date/float values are written directly;
         # openpyxl will store them as native Excel date/number cells.
+        # append_row_safe guards text values (e.g. "=HYPERLINK(...)" copied
+        # verbatim from an external CSV) from being interpreted as formulas.
         for _, row in df.iterrows():
-            ws.append([
+            append_row_safe(ws, [
                 None if (v is None or (isinstance(v, float) and pd.isna(v))) else v
                 for v in row
             ])

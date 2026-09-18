@@ -28,8 +28,6 @@ predefined_colors:
   TEAL: "#17A2B8"
 
 numeric_validation:
-  decimal_separator: "."
-  thousands_separator: ","
   min_value: 0
   max_value: 999999999
 

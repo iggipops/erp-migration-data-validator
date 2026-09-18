@@ -36,12 +36,17 @@ class ValidationEngine:
     def execute(
         self,
         rules: list[dict],
-        failed_enrichment_columns: set[str] | None = None,
+        failed_enrichment_columns: set[tuple[str, str]] | None = None,
         failed_sheets: set[str] | None = None,
     ) -> list[dict]:
         """
         Execute active validation rules in SequenceNum order.
         Returns execution statistics per rule.
+
+        `failed_enrichment_columns` is a set of (normalized SheetName,
+        normalized ColumnName) tuples — scoped per worksheet, matched
+        case-insensitively (FS section 9), per the failed-enrichment
+        dependency skip in FS section 2.5.3.
         """
         failed_enrichment_columns = failed_enrichment_columns or set()
         failed_sheets = {normalize_string(s) for s in (failed_sheets or set())}
@@ -98,11 +103,16 @@ class ValidationEngine:
                 continue
 
             # --- Dependency skip (FS section 2.5.3) ---
+            # ReferenceDataColumn is scoped to ReferenceDataSheet for
+            # REFERENCE (the lookup source) but to the rule's own SheetName
+            # for DUPLICATE2 (FS 6.4: "second column on the same sheet").
             ref_column = str(rule.get("ReferenceDataColumn", "")).strip()
             dep_column = None
-            if stat["ColumnName"] in failed_enrichment_columns:
+            if (normalize_string(stat["SheetName"]), normalize_string(stat["ColumnName"])) in failed_enrichment_columns:
                 dep_column = stat["ColumnName"]
-            elif vtype in ("REFERENCE", "DUPLICATE2") and ref_column in failed_enrichment_columns:
+            elif vtype == "REFERENCE" and (normalize_string(ref_data_sheet), normalize_string(ref_column)) in failed_enrichment_columns:
+                dep_column = ref_column
+            elif vtype == "DUPLICATE2" and (normalize_string(stat["SheetName"]), normalize_string(ref_column)) in failed_enrichment_columns:
                 dep_column = ref_column
 
             if dep_column:
