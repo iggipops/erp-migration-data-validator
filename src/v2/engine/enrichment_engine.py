@@ -3,7 +3,10 @@ from openpyxl.workbook import Workbook
 
 from config.config_loader import AppConfig
 from registry.function_registry import FunctionRegistry
-from workbook.excel_utils import get_headers, sheet_to_dataframe, get_sheet, find_column_index, normalize_string
+from workbook.excel_utils import (
+    get_headers, sheet_to_dataframe, get_sheet, find_column_index, normalize_string,
+    set_cell_value,
+)
 from utils.logger import get_logger
 
 
@@ -108,10 +111,10 @@ class EnrichmentEngine:
         if col_idx is None:
             # New column — append after last used column
             col_idx = sheet.max_column + 1
-            sheet.cell(row=1, column=col_idx, value=target_column)
+            set_cell_value(sheet, 1, col_idx, target_column)
 
         for i, value in enumerate(result):
-            sheet.cell(row=i + 2, column=col_idx, value=value)
+            set_cell_value(sheet, i + 2, col_idx, value)
 
         # Apply Color (if defined) to header and all data cells in the column
         color_value = str(rule.get("Color", "") or "").strip()

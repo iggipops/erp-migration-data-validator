@@ -19,7 +19,7 @@ from openpyxl.workbook import Workbook
 from config.config_loader import AppConfig, EXTERNAL_FILES_SHEET, IMPORT_SPEC_SHEET
 from workbook.excel_utils import (
     sheet_exists, is_empty, normalize_string,
-    get_headers, get_sheet, find_column_index,
+    get_headers, get_sheet, find_column_index, cell_value, last_data_row,
 )
 from utils.logger import get_logger
 
@@ -112,7 +112,7 @@ class PreflightValidator:
         existing_sheet_names = {normalize_string(s) for s in self.workbook.sheetnames}
 
         active_rows = []
-        for row in range(2, sheet.max_row + 1):
+        for row in range(2, last_data_row(sheet) + 1):
             r = self._row_dict(sheet, headers, row, all_ef_columns)
             if self._all_empty(r):
                 continue
@@ -302,7 +302,7 @@ class PreflightValidator:
         all_isp_columns = MANDATORY_IMPORT_SPEC_COLUMNS + CONDITIONAL_IMPORT_SPEC_COLUMNS
         seen_keys = {}
 
-        for row in range(2, sheet.max_row + 1):
+        for row in range(2, last_data_row(sheet) + 1):
             r = self._row_dict(sheet, headers, row, all_isp_columns)
             if self._all_empty(r):
                 continue
@@ -331,6 +331,12 @@ class PreflightValidator:
                 self.errors.append(
                     f'{IMPORT_SPEC_SHEET} row {row}: ExternalFileSheetName "{ef_sheet}" does '
                     f'not reference an Active=Yes row in {EXTERNAL_FILES_SHEET}'
+                )
+            elif str(active_ef_by_sheet[normalize_string(ef_sheet)].get("Format", "") or "").strip().lower() == "xlsx":
+                self.errors.append(
+                    f'{IMPORT_SPEC_SHEET} row {row}: ExternalFileSheetName "{ef_sheet}" '
+                    f'references an xlsx row in {EXTERNAL_FILES_SHEET} — ImportSpec applies '
+                    f'to csv external files only (xlsx files already carry native types)'
                 )
 
             # --- ColumnName: existence in the actual external file is
@@ -408,7 +414,7 @@ class PreflightValidator:
         result = {}
         for canon in canonical_columns:
             idx = find_column_index(headers, canon)
-            result[canon] = sheet.cell(row=row, column=idx).value if idx is not None else None
+            result[canon] = cell_value(sheet.cell(row=row, column=idx)) if idx is not None else None
         return result
 
     def _all_empty(self, row_data: dict) -> bool:

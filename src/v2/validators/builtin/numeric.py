@@ -1,5 +1,5 @@
 import math
-from workbook.excel_utils import is_empty
+from workbook.excel_utils import is_empty, cell_value, last_data_row
 
 
 def validate(sheet, col_idx, col_name, rule, context):
@@ -21,9 +21,9 @@ def _validate_numeric(sheet, col_idx, col_name, rule, context, integer_only: boo
     min_value = nv.get("min_value")
     max_value = nv.get("max_value")
 
-    for row in range(2, sheet.max_row + 1):
+    for row in range(2, last_data_row(sheet) + 1):
         cell  = sheet.cell(row=row, column=col_idx)
-        value = cell.value
+        value = cell_value(cell)
 
         if is_empty(value):
             continue

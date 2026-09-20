@@ -11,7 +11,7 @@ from config.config_loader import (
 )
 from workbook.excel_utils import (
     sheet_exists, is_empty, normalize_string, clean_field,
-    get_headers, get_sheet, find_column_index,
+    get_headers, get_sheet, find_column_index, cell_value, last_data_row,
 )
 from utils.logger import get_logger
 
@@ -97,7 +97,7 @@ class MetadataValidator:
 
         seq_nums, rule_codes, rule_names = [], [], []
 
-        for row in range(2, sheet.max_row + 1):
+        for row in range(2, last_data_row(sheet) + 1):
 
             r = self._row_dict(sheet, headers, row, MANDATORY_VALIDATION_COLUMNS)
 
@@ -428,7 +428,7 @@ class MetadataValidator:
         seq_nums, rule_codes, rule_names = [], [], []
         all_enrichment_columns = MANDATORY_ENRICHMENT_COLUMNS + CONDITIONAL_ENRICHMENT_COLUMNS
 
-        for row in range(2, sheet.max_row + 1):
+        for row in range(2, last_data_row(sheet) + 1):
 
             r = self._row_dict(sheet, headers, row, all_enrichment_columns)
 
@@ -550,7 +550,7 @@ class MetadataValidator:
         result = {}
         for canon in canonical_columns:
             idx = find_column_index(headers, canon)
-            result[canon] = sheet.cell(row=row, column=idx).value if idx is not None else None
+            result[canon] = cell_value(sheet.cell(row=row, column=idx)) if idx is not None else None
         return result
 
     def _all_empty(self, row_data: dict) -> bool:
@@ -602,14 +602,14 @@ class MetadataValidator:
         active_idx     = find_column_index(headers, "Active")
         if target_col_idx is None or sheet_name_idx is None:
             return False
-        for row in range(2, sheet.max_row + 1):
+        for row in range(2, last_data_row(sheet) + 1):
             active = str(
-                (sheet.cell(row=row, column=active_idx).value if active_idx else None) or ""
+                (cell_value(sheet.cell(row=row, column=active_idx)) if active_idx else None) or ""
             ).strip().upper()
             if active != "YES":
                 continue
-            rule_sheet = str(sheet.cell(row=row, column=sheet_name_idx).value or "").strip()
-            target_col = str(sheet.cell(row=row, column=target_col_idx).value or "").strip()
+            rule_sheet = str(cell_value(sheet.cell(row=row, column=sheet_name_idx)) or "").strip()
+            target_col = str(cell_value(sheet.cell(row=row, column=target_col_idx)) or "").strip()
             if normalize_string(rule_sheet) == normalize_string(sheet_name) and \
                normalize_string(target_col) == normalize_string(col_name):
                 return True

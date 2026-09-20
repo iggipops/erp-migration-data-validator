@@ -16,6 +16,30 @@ it.
 
 ## [Unreleased]
 
+## [v2_9_r1_0] - 2026-09-19
+
+Implements FS v2_9_r1.
+
+### Changed
+
+- ImportSpec applies to csv external files only. An ImportSpec row whose
+  `ExternalFileSheetName` points to an xlsx row in `ExternalFiles` is now a
+  metadata validation error (`PreflightValidator`, FS 8.3.2). External xlsx
+  files are no longer read as text and converted: `Importer` copies the
+  worksheet cell by cell with native types and formulas (FS 8.6.1). csv
+  loading is unchanged.
+- xlsx workbooks (primary and external alike) are read one way (FS 8.4.1):
+  - Formulas vs. calculated values: `open_workbook()` loads each file twice;
+    validators, enrichment and metadata readers read the last-calculated
+    value (`cell_value()`, `sheet_to_dataframe()`), while the output keeps
+    the formulas. A formula cell with no cached value logs a warning.
+  - Last row: `last_data_row()` replaces `max_row` for reading business and
+    metadata sheets — rows that only carry formatting are no longer scanned.
+  - `sheet_to_dataframe()` builds the frame with `dtype=object`, so ints and
+    floats keep the type they were read with.
+- Six existing tests now include a filled second column: with the new last-row
+  rule, a trailing row that is blank in every column is not a data row.
+
 ## [v2_9_r0_3] - 2026-09-18
 
 ### Added

@@ -7,6 +7,8 @@ from openpyxl import load_workbook
 from openpyxl.workbook import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
+from utils.logger import get_logger
+
 
 # ---------------------------------------------------------------------------
 # Workbook open / copy
@@ -20,13 +22,136 @@ def copy_workbook(source_path: str, output_path: str) -> None:
 
 
 def open_workbook(path: str) -> Workbook:
-    """Open an xlsx workbook with openpyxl (keep_vba=False)."""
-    return load_workbook(path)
+    """
+    Open an xlsx workbook with openpyxl (keep_vba=False) — twice (F-01).
+
+    The returned workbook is the normal one: formulas are preserved, and
+    it is the workbook that gets highlighted and saved. A second,
+    data_only=True copy (the last-calculated value Excel cached for each
+    formula cell) is attached to it as its "values twin"; validators and
+    enrichment read business values from the twin via cell_value() /
+    sheet_to_dataframe(), never the formula text. Any formula cell whose
+    cached value is missing is logged as a warning.
+    """
+    wb = load_workbook_pair(path)
+    warn_missing_cached_values(wb)
+    return wb
+
+
+def load_workbook_pair(path: str) -> Workbook:
+    """open_workbook() without the missing-cached-value scan."""
+    wb = load_workbook(path)
+    attach_values_twin(wb, load_workbook(path, data_only=True))
+    return wb
 
 
 def save_workbook(workbook: Workbook, path: str) -> None:
     """Save the workbook to the given path."""
     workbook.save(path)
+
+
+# ---------------------------------------------------------------------------
+# Values twin (F-01)
+#
+# The output workbook keeps formulas (it is what gets saved). Business
+# values are read from a data_only copy of the same workbook — the
+# "twin" — found through the workbook itself, so a plain Workbook with no
+# twin attached (tests, generated sheets) reads exactly as before.
+# ---------------------------------------------------------------------------
+
+_TWIN_ATTR = "_values_twin"
+
+
+def attach_values_twin(workbook: Workbook, twin: Workbook) -> None:
+    setattr(workbook, _TWIN_ATTR, twin)
+
+
+def get_values_twin(workbook: Workbook) -> Workbook | None:
+    return getattr(workbook, _TWIN_ATTR, None)
+
+
+def values_sheet(sheet: Worksheet, create: bool = False) -> Worksheet | None:
+    """
+    The twin's counterpart of `sheet`, or `sheet` itself if its workbook
+    has no twin. If a twin exists but lacks the sheet: None, or a new
+    empty twin sheet when create=True.
+    """
+    twin = get_values_twin(sheet.parent)
+    if twin is None:
+        return sheet
+    if sheet.title in twin.sheetnames:
+        return twin[sheet.title]
+    return twin.create_sheet(sheet.title) if create else None
+
+
+def cell_value(cell):
+    """
+    The value a validator should check: for a formula cell, the cached
+    (last-calculated) result from the values twin; otherwise the cell's
+    own value. A formula whose cached value is missing yields None (the
+    warning is logged when the workbook is opened).
+    """
+    if cell.data_type != "f":
+        return cell.value
+    twin_sheet = values_sheet(cell.parent)
+    if twin_sheet is None:
+        return None
+    return twin_sheet.cell(row=cell.row, column=cell.column).value
+
+
+def set_cell_value(sheet: Worksheet, row: int, column: int, value) -> None:
+    """Write a plain value to the sheet and its values twin, so both stay in step."""
+    sheet.cell(row=row, column=column, value=value)
+    twin_sheet = values_sheet(sheet, create=True)
+    if twin_sheet is not sheet:
+        twin_sheet.cell(row=row, column=column, value=value)
+
+
+def warn_missing_cached_values(workbook: Workbook, sheet_names: list[str] | None = None,
+                               source: str = "") -> int:
+    """
+    Log one warning per sheet that has formula cells with no cached value
+    under data_only=True — the file was never opened and saved in real
+    Excel, so its formulas have no calculated results. Returns the total
+    number of such cells.
+    """
+    logger = get_logger()
+    total = 0
+    for name in (sheet_names if sheet_names is not None else workbook.sheetnames):
+        sheet = workbook[name]
+        twin_sheet = values_sheet(sheet)
+        if twin_sheet is None or twin_sheet is sheet:
+            continue
+        missing = [
+            cell.coordinate
+            for row in sheet.iter_rows()
+            for cell in row
+            if cell.data_type == "f"
+            and twin_sheet.cell(row=cell.row, column=cell.column).value is None
+        ]
+        if missing:
+            total += len(missing)
+            shown = ", ".join(missing[:5]) + (", ..." if len(missing) > 5 else "")
+            logger.warning(
+                f"{source}Sheet '{name}': {len(missing)} formula cell(s) have no "
+                f"cached value ({shown}) — the file was never opened and saved in "
+                f"Excel, so these cells have no calculated result to validate"
+            )
+    return total
+
+
+def last_data_row(sheet: Worksheet) -> int:
+    """
+    1-based number of the last row of `sheet` holding a real value (F-02),
+    or 0 for an empty sheet. openpyxl's max_row also counts rows that only
+    carry formatting or a deleted value, so it can run far past the data.
+    A formula cell counts as a real value. Scanned per sheet, not per column.
+    """
+    last = 0
+    for idx, row in enumerate(sheet.iter_rows(values_only=True), start=1):
+        if any(v is not None and str(v).strip() != "" for v in row):
+            last = idx
+    return last
 
 
 # ---------------------------------------------------------------------------
@@ -89,8 +214,9 @@ def get_headers(sheet: Worksheet) -> dict[str, int]:
     """
     headers: dict[str, int] = {}
     for cell in sheet[1]:
-        if cell.value is not None:
-            headers[str(cell.value).strip()] = cell.column
+        value = cell_value(cell)
+        if value is not None:
+            headers[str(value).strip()] = cell.column
     return headers
 
 
@@ -117,16 +243,20 @@ def sheet_to_dataframe(sheet: Worksheet) -> pd.DataFrame:
     """
     Read an openpyxl sheet into a pandas DataFrame.
     First row is used as column headers.
-    All values are kept as-is (no dtype coercion).
+    All values are kept as-is (no dtype coercion): formula cells come from
+    the values twin (F-01), rows stop at the last real value (F-02), and
+    the frame is dtype=object (F-03) so a float stays a float.
     """
-    rows = list(sheet.iter_rows(values_only=True))
-    if not rows:
+    last_row = last_data_row(sheet)
+    if last_row == 0:
         return pd.DataFrame()
+    rows = list((values_sheet(sheet) or sheet).iter_rows(
+        max_row=last_row, values_only=True))
 
     headers = [str(c).strip() if c is not None else f"_col{i}"
                for i, c in enumerate(rows[0])]
     data = rows[1:]
-    return pd.DataFrame(data, columns=headers)
+    return pd.DataFrame(data, columns=headers, dtype=object)
 
 
 # ---------------------------------------------------------------------------

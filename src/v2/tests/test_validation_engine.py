@@ -16,7 +16,7 @@ def make_rule(**overrides):
 def test_executes_active_rule_and_records_issues(make_workbook, sheet_factory, fake_config,
                                                    issues_writer_factory, fn_registry, vtype_registry):
     wb = make_workbook()
-    sheet_factory(wb, "Items", [["ItemId"], ["A1"], [None]])
+    sheet_factory(wb, "Items", [["ItemId", "Other"], ["A1", "x"], [None, "x"]])
     iw = issues_writer_factory(wb, fake_config)
     engine = ValidationEngine(wb, fake_config, fn_registry, vtype_registry, iw)
     stats = engine.execute([make_rule()])
@@ -27,7 +27,7 @@ def test_executes_active_rule_and_records_issues(make_workbook, sheet_factory, f
 def test_inactive_rule_skipped(make_workbook, sheet_factory, fake_config,
                                 issues_writer_factory, fn_registry, vtype_registry):
     wb = make_workbook()
-    sheet_factory(wb, "Items", [["ItemId"], [None]])
+    sheet_factory(wb, "Items", [["ItemId", "Other"], [None, "x"]])
     iw = issues_writer_factory(wb, fake_config)
     engine = ValidationEngine(wb, fake_config, fn_registry, vtype_registry, iw)
     stats = engine.execute([make_rule(Active="No")])
@@ -48,7 +48,7 @@ def test_rules_executed_in_sequencenum_order(make_workbook, sheet_factory, fake_
 def test_sheet_and_column_resolved_case_insensitively(make_workbook, sheet_factory, fake_config,
                                                         issues_writer_factory, fn_registry, vtype_registry):
     wb = make_workbook()
-    sheet_factory(wb, "Items", [["ItemId"], [None]])
+    sheet_factory(wb, "Items", [["ItemId", "Other"], [None, "x"]])
     iw = issues_writer_factory(wb, fake_config)
     engine = ValidationEngine(wb, fake_config, fn_registry, vtype_registry, iw)
     rule = make_rule(SheetName="items", ColumnName="itemid")
@@ -196,7 +196,7 @@ def test_rule_same_column_name_different_sheet_is_not_skipped(
     worksheet — a column name that only collides with a failed enrichment's
     TargetColumn on a *different* sheet must not cause a false-positive skip."""
     wb = make_workbook()
-    sheet_factory(wb, "Items", [["ItemId"], [None]])
+    sheet_factory(wb, "Items", [["ItemId", "Other"], [None, "x"]])
     iw = issues_writer_factory(wb, fake_config)
     engine = ValidationEngine(wb, fake_config, fn_registry, vtype_registry, iw)
     rule = make_rule(SheetName="Items", ColumnName="ItemId")
@@ -241,7 +241,7 @@ def test_duplicate2_rule_dependency_scoped_to_own_sheet(
 def test_unrelated_rule_still_executes_when_other_sheet_failed(make_workbook, sheet_factory, fake_config,
                                                                  issues_writer_factory, fn_registry, vtype_registry):
     wb = make_workbook()
-    sheet_factory(wb, "Items", [["ItemId"], [None]])
+    sheet_factory(wb, "Items", [["ItemId", "Other"], [None, "x"]])
     iw = issues_writer_factory(wb, fake_config)
     engine = ValidationEngine(wb, fake_config, fn_registry, vtype_registry, iw)
     rules = [

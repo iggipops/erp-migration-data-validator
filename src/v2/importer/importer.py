@@ -1,5 +1,5 @@
 """
-Import Module — FS section 8.5.
+Import Module — FS section 8.6.
 
 Loads active external files defined in ExternalFiles, optionally applying
 per-column ImportSpec conversions (section 5.4), and writes the result into
@@ -16,7 +16,10 @@ from openpyxl.workbook import Workbook
 
 from config.config_loader import AppConfig
 from importer.conversion import convert_date, convert_numeric, convert_integer
-from workbook.excel_utils import append_row_safe, remove_sheet_if_exists
+from workbook.excel_utils import (
+    append_row_safe, remove_sheet_if_exists, get_sheet, get_values_twin,
+    last_data_row, load_workbook_pair, values_sheet, warn_missing_cached_values,
+)
 from utils.logger import get_logger
 
 
@@ -68,18 +71,22 @@ class Importer:
             self.logger.info(f"Importing external file: {file_path} -> sheet '{sheet_name}'")
 
             try:
-                df = self._load_external_file(rule, file_path, file_type)
-
-                applicable_specs = spec_by_sheet.get(sheet_name.lower(), [])
                 warning_count = 0
-                if applicable_specs:
-                    warning_count = self._apply_import_spec(df, sheet_name, applicable_specs)
+                if file_type == "xlsx":
+                    # xlsx keeps native types and formulas; no ImportSpec (FS 8.6.1)
+                    row_count = self._import_xlsx(rule, file_path, sheet_name)
+                else:
+                    df = self._load_external_file(rule, file_path, file_type)
+                    applicable_specs = spec_by_sheet.get(sheet_name.lower(), [])
+                    if applicable_specs:
+                        warning_count = self._apply_import_spec(df, sheet_name, applicable_specs)
+                    self._write_dataframe_to_sheet(df, sheet_name)
+                    row_count = len(df)
 
-                self._write_dataframe_to_sheet(df, sheet_name)
                 results["loaded"].append(sheet_name)
                 results["conversion_warnings"][sheet_name] = warning_count
                 self.logger.info(
-                    f"  Imported {len(df)} rows into sheet '{sheet_name}'"
+                    f"  Imported {row_count} rows into sheet '{sheet_name}'"
                     + (f" ({warning_count} conversion warning(s))" if warning_count else "")
                 )
 
@@ -92,26 +99,67 @@ class Importer:
         return results
 
     # -----------------------------------------------------------------------
-    # 8.5.1 Loading
+    # 8.6.1 Loading
     # -----------------------------------------------------------------------
+
+    def _import_xlsx(self, rule: dict, file_path: str, sheet_name: str) -> int:
+        """
+        Import one worksheet of an external xlsx file, read the same way as
+        the primary workbook (F-01/F-02): the file is loaded twice —
+        formulas for the output workbook, cached values (data_only=True)
+        for the values twin — and rows stop at the last real value. Cells
+        are copied with their native type, formulas included. Returns the
+        number of data rows imported.
+        """
+        if not Path(file_path).exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        original_sheet = str(rule.get("OriginalSheetName", "") or "").strip()
+        if not original_sheet:
+            raise ValueError("OriginalSheetName is required when Format = xlsx")
+
+        src_wb    = load_workbook_pair(file_path)
+        src_sheet = get_sheet(src_wb, original_sheet)
+        warn_missing_cached_values(
+            src_wb, [src_sheet.title], source=f"External file '{file_path}': ")
+        src_values = values_sheet(src_sheet)
+        last_row   = last_data_row(src_sheet)
+
+        remove_sheet_if_exists(self.workbook, sheet_name)
+        ws = self.workbook.create_sheet(sheet_name)
+        twin = get_values_twin(self.workbook)
+        twin_ws = None
+        if twin is not None:
+            remove_sheet_if_exists(twin, sheet_name)
+            twin_ws = twin.create_sheet(sheet_name)
+
+        for r in range(1, last_row + 1):
+            for c in range(1, src_sheet.max_column + 1):
+                src = src_sheet.cell(row=r, column=c)
+                value = src.value
+                if r == 1 and value is not None:
+                    value = str(value).strip()  # column names stripped at load (FS 8.6.1)
+                if value is None:
+                    continue
+                dst = ws.cell(row=r, column=c, value=value)
+                dst.data_type = src.data_type  # a text "=x" must not become a formula
+                dst.number_format = src.number_format
+                if twin_ws is not None:
+                    cached = value if r == 1 else src_values.cell(row=r, column=c).value
+                    if cached is not None:
+                        tdst = twin_ws.cell(row=r, column=c, value=cached)
+                        tdst.number_format = src.number_format
+        return max(last_row - 1, 0)
 
     def _load_external_file(
         self, rule: dict, file_path: str, file_type: str
     ) -> pd.DataFrame:
+        """Load a csv external file as text. (xlsx goes through _import_xlsx.)"""
 
         if not Path(file_path).exists():
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        if file_type == "xlsx":
-            original_sheet = str(rule.get("OriginalSheetName", "")).strip() or None
-            df = pd.read_excel(
-                file_path,
-                sheet_name=original_sheet,
-                dtype=str,
-                engine="openpyxl",
-            )
-
-        elif file_type == "csv":
+        if file_type == "csv":
             raw_delimiter = str(rule.get("CSVDelimiter", ",") or ",").strip()
             delimiter = raw_delimiter.replace('"', '').replace("'", "").strip() or ","
             self.logger.debug(f"  CSV delimiter: '{delimiter}'")
@@ -125,7 +173,7 @@ class Importer:
         return df
 
     # -----------------------------------------------------------------------
-    # 8.5.2 ImportSpec Column Conversion
+    # 8.6.2 ImportSpec Column Conversion (csv files only)
     # -----------------------------------------------------------------------
 
     def _apply_import_spec(
@@ -226,7 +274,7 @@ class Importer:
         return warning_count
 
     # -----------------------------------------------------------------------
-    # 8.5.3 Writing to Output Workbook
+    # 8.6.3 Writing to Output Workbook
     # -----------------------------------------------------------------------
 
     def _write_dataframe_to_sheet(self, df: pd.DataFrame, sheet_name: str) -> None:
@@ -234,16 +282,26 @@ class Importer:
         remove_sheet_if_exists(self.workbook, sheet_name)
 
         ws = self.workbook.create_sheet(sheet_name)
+        twin = get_values_twin(self.workbook)
+        twin_ws = None
+        if twin is not None:
+            remove_sheet_if_exists(twin, sheet_name)
+            twin_ws = twin.create_sheet(sheet_name)
+        targets = [t for t in (ws, twin_ws) if t is not None]
 
         # Header row
-        ws.append(list(df.columns))
+        for t in targets:
+            t.append(list(df.columns))
 
         # Data rows — native Python date/float values are written directly;
         # openpyxl will store them as native Excel date/number cells.
         # append_row_safe guards text values (e.g. "=HYPERLINK(...)" copied
         # verbatim from an external CSV) from being interpreted as formulas.
+        # Rows go to the values twin too, so both workbooks stay in step.
         for _, row in df.iterrows():
-            append_row_safe(ws, [
+            values = [
                 None if (v is None or (isinstance(v, float) and pd.isna(v))) else v
                 for v in row
-            ])
+            ]
+            for t in targets:
+                append_row_safe(t, values)

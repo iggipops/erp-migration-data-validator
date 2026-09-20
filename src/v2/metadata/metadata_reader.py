@@ -1,6 +1,6 @@
 from openpyxl.workbook import Workbook
 
-from workbook.excel_utils import get_headers, get_sheet, sheet_exists, is_empty, find_column_index
+from workbook.excel_utils import get_headers, get_sheet, sheet_exists, is_empty, find_column_index, cell_value, last_data_row
 from utils.logger import get_logger
 from config.config_loader import (
     VALIDATION_RULES_SHEET,
@@ -95,19 +95,19 @@ class MetadataReader:
 
         rows: list[dict] = []
 
-        for row_num in range(2, sheet.max_row + 1):
+        for row_num in range(2, last_data_row(sheet) + 1):
 
             row_data = {}
             all_empty = True
 
             for canon, idx in canonical_idx.items():
-                value = sheet.cell(row=row_num, column=idx).value
+                value = cell_value(sheet.cell(row=row_num, column=idx))
                 row_data[canon] = value
                 if not is_empty(value):
                     all_empty = False
 
             for literal, idx in extra_headers.items():
-                value = sheet.cell(row=row_num, column=idx).value
+                value = cell_value(sheet.cell(row=row_num, column=idx))
                 row_data[literal] = value
                 if not is_empty(value):
                     all_empty = False

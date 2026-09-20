@@ -1,5 +1,5 @@
 import re
-from workbook.excel_utils import is_empty
+from workbook.excel_utils import is_empty, cell_value, last_data_row
 
 
 def validate(sheet, col_idx, col_name, rule, context):
@@ -12,11 +12,11 @@ def validate(sheet, col_idx, col_name, rule, context):
     config         = context["config"]
     special_chars  = config.format_special_chars or ""
 
-    for row in range(2, sheet.max_row + 1):
+    for row in range(2, last_data_row(sheet) + 1):
         cell = sheet.cell(row=row, column=col_idx)
-        if is_empty(cell.value):
+        if is_empty(cell_value(cell)):
             continue
-        value   = str(cell.value)
+        value   = str(cell_value(cell))
         invalid = (
             value != value.strip()
             or bool(re.search(r"\s{2,}", value))
@@ -26,5 +26,5 @@ def validate(sheet, col_idx, col_name, rule, context):
             issues_writer.record(
                 cell=cell, rule=rule,
                 sheet_name=sheet.title, column_name=col_name,
-                row_number=row, cell_content=cell.value,
+                row_number=row, cell_content=cell_value(cell),
             )

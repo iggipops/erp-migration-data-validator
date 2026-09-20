@@ -1,5 +1,5 @@
 from datetime import datetime, date
-from workbook.excel_utils import is_empty
+from workbook.excel_utils import is_empty, cell_value, last_data_row
 
 
 def validate(sheet, col_idx, col_name, rule, context):
@@ -22,9 +22,9 @@ def validate(sheet, col_idx, col_name, rule, context):
     min_date = datetime.strptime(min_date_str, "%Y-%m-%d") if min_date_str else None
     max_date = datetime.strptime(max_date_str, "%Y-%m-%d") if max_date_str else None
 
-    for row in range(2, sheet.max_row + 1):
+    for row in range(2, last_data_row(sheet) + 1):
         cell  = sheet.cell(row=row, column=col_idx)
-        value = cell.value
+        value = cell_value(cell)
 
         if is_empty(value):
             continue

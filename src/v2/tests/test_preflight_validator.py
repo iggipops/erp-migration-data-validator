@@ -232,6 +232,36 @@ def test_importspec_valid_reference_passes(make_workbook, sheet_factory, tmp_pat
     assert pv.validate() == []
 
 
+def test_importspec_must_not_target_xlsx_external_file(make_workbook, sheet_factory, tmp_path):
+    from openpyxl import Workbook
+    f = tmp_path / "a.xlsx"
+    ext = Workbook()
+    ext.active.title = "Data"
+    ext.save(f)
+    wb = build_wb(
+        make_workbook, sheet_factory,
+        ef_rows=[[1, "Items", str(f), "xlsx", "Yes", "Data", ""]],
+        isp_rows=[["Items", "Qty", "numeric", "Yes", "", "", ""]],
+    )
+    errors = PreflightValidator(wb, config=None).validate()
+    assert len(errors) == 1
+    assert "ImportSpec row 2" in errors[0] and "csv external files only" in errors[0]
+
+
+def test_importspec_on_inactive_row_may_name_xlsx_sheet(make_workbook, sheet_factory, tmp_path):
+    from openpyxl import Workbook
+    f = tmp_path / "a.xlsx"
+    ext = Workbook()
+    ext.active.title = "Data"
+    ext.save(f)
+    wb = build_wb(
+        make_workbook, sheet_factory,
+        ef_rows=[[1, "Items", str(f), "xlsx", "Yes", "Data", ""]],
+        isp_rows=[["Items", "Qty", "numeric", "No", "", "", ""]],
+    )
+    assert PreflightValidator(wb, config=None).validate() == []
+
+
 def test_importspec_date_requires_dateformats(make_workbook, sheet_factory, tmp_path):
     f = tmp_path / "a.csv"; f.write_text("a\n1\n")
     wb = build_wb(

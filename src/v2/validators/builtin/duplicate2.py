@@ -1,5 +1,5 @@
 from collections import Counter
-from workbook.excel_utils import is_empty, normalize_string, get_headers, find_column_index
+from workbook.excel_utils import is_empty, normalize_string, get_headers, find_column_index, cell_value, last_data_row
 
 
 def validate(sheet, col_idx, col_name, rule, context):
@@ -20,11 +20,11 @@ def validate(sheet, col_idx, col_name, rule, context):
         )
 
     pairs = {}
-    for row in range(2, sheet.max_row + 1):
-        v1 = sheet.cell(row=row, column=col_idx).value
+    for row in range(2, last_data_row(sheet) + 1):
+        v1 = cell_value(sheet.cell(row=row, column=col_idx))
         if is_empty(v1):
             continue
-        v2 = sheet.cell(row=row, column=ref_col_idx).value
+        v2 = cell_value(sheet.cell(row=row, column=ref_col_idx))
         pairs[row] = (normalize_string(v1), normalize_string(v2))
 
     duplicates = {pair for pair, count in Counter(pairs.values()).items() if count > 1}
@@ -35,5 +35,5 @@ def validate(sheet, col_idx, col_name, rule, context):
             issues_writer.record(
                 cell=cell, rule=rule,
                 sheet_name=sheet.title, column_name=col_name,
-                row_number=row, cell_content=cell.value,
+                row_number=row, cell_content=cell_value(cell),
             )

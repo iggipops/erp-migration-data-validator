@@ -1,4 +1,4 @@
-from workbook.excel_utils import sheet_to_dataframe
+from workbook.excel_utils import sheet_to_dataframe, cell_value
 
 
 def validate(sheet, col_idx, col_name, rule, context):
@@ -49,6 +49,6 @@ def validate(sheet, col_idx, col_name, rule, context):
             issues_writer.record(
                 cell=cell, rule=rule,
                 sheet_name=sheet.title, column_name=col_name,
-                row_number=row, cell_content=cell.value,
+                row_number=row, cell_content=cell_value(cell),
                 comment=comment,
             )

@@ -2,7 +2,9 @@ from validators.builtin import empty
 
 
 def run(wb, sheet_factory, config, issues_writer_factory, rows):
-    sheet_factory(wb, "Items", [["ItemId"]] + rows)
+    # A second, always-filled column keeps blank cells inside the data range —
+    # rows with no value in any column are not data rows (F-02).
+    sheet_factory(wb, "Items", [["ItemId", "Other"]] + [[*r, "x"] for r in rows])
     ws = wb["Items"]
     iw = issues_writer_factory(wb, config)
     rule = {"RuleCode": "R1", "RuleName": "Empty check", "Severity": "ERROR", "Color": "RED"}
