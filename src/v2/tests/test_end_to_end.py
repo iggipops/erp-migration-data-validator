@@ -111,8 +111,8 @@ def build_input_workbook_with_failed_import(path, external_csv_path):
 
     ef = wb.create_sheet("ExternalFiles")
     ef.append(["SequenceNum", "SheetName", "FilePath", "Format", "Active",
-               "OriginalSheetName", "CSVDelimiter"])
-    ef.append([1, "Bad/Sheet", str(external_csv_path), "csv", "Yes", "", ","])
+               "OriginalSheetName", "CSVDelimiter", "CSVEncoding"])
+    ef.append([1, "Bad/Sheet", str(external_csv_path), "csv", "Yes", "", ",", "utf-8"])
 
     vr = wb.create_sheet("ValidationRules")
     vr.append(["SequenceNum", "RuleCode", "RuleName", "SheetName", "ColumnName",
@@ -204,8 +204,8 @@ def build_input_workbook_with_reference_and_sheetname_dependency(path, external_
 
     ef = wb.create_sheet("ExternalFiles")
     ef.append(["SequenceNum", "SheetName", "FilePath", "Format", "Active",
-               "OriginalSheetName", "CSVDelimiter"])
-    ef.append([1, "Bad/Sheet", str(external_csv_path), "csv", "Yes", "", ","])
+               "OriginalSheetName", "CSVDelimiter", "CSVEncoding"])
+    ef.append([1, "Bad/Sheet", str(external_csv_path), "csv", "Yes", "", ",", "utf-8"])
 
     vr = wb.create_sheet("ValidationRules")
     vr.append(["SequenceNum", "RuleCode", "RuleName", "SheetName", "ColumnName",
@@ -436,8 +436,8 @@ def test_pipeline_fails_cleanly_on_preflight_error(tmp_path, monkeypatch):
     wb.create_sheet("Items").append(["ItemId"])
     ef = wb.create_sheet("ExternalFiles")
     ef.append(["SequenceNum", "SheetName", "FilePath", "Format", "Active",
-               "OriginalSheetName", "CSVDelimiter"])
-    ef.append([1, "Stock", "/does/not/exist.csv", "csv", "Yes", "", ","])
+               "OriginalSheetName", "CSVDelimiter", "CSVEncoding"])
+    ef.append([1, "Stock", "/does/not/exist.csv", "csv", "Yes", "", ",", "utf-8"])
     wb.save(input_file)
 
     config_data = {

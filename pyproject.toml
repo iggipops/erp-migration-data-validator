@@ -1,0 +1,30 @@
+# Project metadata and the source of truth for dependency floors.
+#
+# This is not a pip-installable package (flat module layout under src/v2, run
+# as a script), so there is deliberately no [build-system] table. Keep
+# requirements.txt and src/v2/requirements-dev.txt in sync with the lists
+# below by hand -- CI installs from the latter.
+#
+# Floors (>=) are the versions installed and verified against the full test
+# suite. They are minimums, not exact pins, so patch/security updates flow in.
+# pandas also has an upper bound (<4): the 2.x -> 3.x jump already broke this
+# project once, so a future major must be a deliberate, tested change.
+
+[project]
+name = "erp-migration-data-validator"
+description = "ERP Migration Data Validator"
+# The version lives in src/v2/__version__.py (vN_L_rK_M, see etc/versioning_scheme.md),
+# which is not a valid PEP 440 string, so it is not duplicated here.
+dynamic = ["version"]
+# Only Python 3.14 has been tested (CI and local); no older interpreter verified.
+requires-python = ">=3.14"
+dependencies = [
+    "pandas>=3.0.3,<4",
+    "openpyxl>=3.1.5",
+    "pyyaml>=6.0.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.1.1",
+]

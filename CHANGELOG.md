@@ -16,6 +16,32 @@ it.
 
 ## [Unreleased]
 
+## [v2_9_r2_0] - 2026-09-24
+
+Implements FS v2_9_r2.
+
+### Added
+
+- New required `CSVEncoding` column on `ExternalFiles` (FS 5.1). Supported
+  values: `utf-8`, `utf-8-sig`, `cp1251`, `cp1252` (case-insensitive).
+  `PreflightValidator` (FS 8.3.1) requires it, non-empty, when `Format = csv`,
+  rejects any other value, and requires it empty when `Format = xlsx`; its
+  header must exist in the sheet, like `CSVDelimiter`. **Existing workbooks
+  must add the column** — without it, preflight terminates with a
+  "column not found" error.
+- `Importer` decodes csv files using the declared `CSVEncoding`. A file that
+  cannot be decoded is a named import failure (FS 8.6.4): the message names
+  the file and the declared encoding, the sheet is added to `failed_sheets`,
+  and dependent rules are skipped like any other failed import.
+
+### Fixed
+
+- csv import no longer blanks literal text that looks like a missing value
+  (`NULL`, `NA`, `N/A`, `None`, `#N/A`, ...). `pd.read_csv` now runs with
+  `keep_default_na=False, na_values=[""]`, so that text survives exactly as
+  written and only a truly empty cell is read as missing (FS 8.6.1).
+  xlsx import is unaffected.
+
 ## [v2_9_r1_0] - 2026-09-19
 
 Implements FS v2_9_r1.

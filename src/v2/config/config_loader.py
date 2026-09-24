@@ -55,6 +55,10 @@ IMPORT_SPEC_SHEET       = "ImportSpec"
 ISSUES_SHEET            = "Issues"
 SUMMARY_SHEET           = "Summary"
 
+# FS 5.1 / 8.3.1 — the only encodings a csv external file may declare
+# (ExternalFiles.CSVEncoding). Shared by preflight validation and the importer.
+SUPPORTED_CSV_ENCODINGS = ("utf-8", "utf-8-sig", "cp1251", "cp1252")
+
 
 # ---------------------------------------------------------------------------
 # Config dataclass

@@ -16,7 +16,9 @@ from pathlib import Path
 
 from openpyxl.workbook import Workbook
 
-from config.config_loader import AppConfig, EXTERNAL_FILES_SHEET, IMPORT_SPEC_SHEET
+from config.config_loader import (
+    AppConfig, EXTERNAL_FILES_SHEET, IMPORT_SPEC_SHEET, SUPPORTED_CSV_ENCODINGS,
+)
 from workbook.excel_utils import (
     sheet_exists, is_empty, normalize_string,
     get_headers, get_sheet, find_column_index, cell_value, last_data_row,
@@ -36,7 +38,7 @@ MANDATORY_EXTERNAL_FILES_COLUMNS = [
 # a missing header means every row silently falls back to a default value,
 # which can hide a renamed/misspelled column.
 CONDITIONAL_EXTERNAL_FILES_COLUMNS = [
-    "OriginalSheetName", "CSVDelimiter",
+    "OriginalSheetName", "CSVDelimiter", "CSVEncoding",
 ]
 
 MANDATORY_IMPORT_SPEC_COLUMNS = [
@@ -232,6 +234,28 @@ class PreflightValidator:
                         f'is not one of the supported delimiters (comma, semicolon, pipe, '
                         f'colon, space)'
                     )
+
+            # --- CSVEncoding: required when Format=csv, must be a supported
+            #     value (case-insensitive); must be empty when Format=xlsx ---
+            csv_enc = r.get("CSVEncoding")
+            csv_enc_str = str(csv_enc).strip() if csv_enc is not None else ""
+            if file_format == "csv":
+                if is_empty(csv_enc_str):
+                    self.errors.append(
+                        f'{EXTERNAL_FILES_SHEET} row {row}: CSVEncoding is required '
+                        f'when Format = csv'
+                    )
+                elif csv_enc_str.lower() not in SUPPORTED_CSV_ENCODINGS:
+                    self.errors.append(
+                        f'{EXTERNAL_FILES_SHEET} row {row}: CSVEncoding "{csv_enc_str}" '
+                        f'is not one of the supported encodings '
+                        f'({", ".join(SUPPORTED_CSV_ENCODINGS)})'
+                    )
+            elif file_format == "xlsx" and not is_empty(csv_enc_str):
+                self.errors.append(
+                    f'{EXTERNAL_FILES_SHEET} row {row}: CSVEncoding must be empty '
+                    f'when Format = xlsx'
+                )
 
             # --- FilePath + OriginalSheetName uniqueness (FilePath alone for csv) ---
             if file_path:

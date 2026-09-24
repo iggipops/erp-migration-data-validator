@@ -27,7 +27,7 @@ The AI backend is provider-agnostic by design (a pluggable provider registry), b
 
 ## Installation
 
-Tested with Python 3.12. Other versions may work but haven't been verified.
+Requires Python 3.14 — the only version this has been tested against. Older versions may or may not work; none have been verified.
 
 ```bash
 git clone https://github.com/iggipops/erp-migration-data-validator.git

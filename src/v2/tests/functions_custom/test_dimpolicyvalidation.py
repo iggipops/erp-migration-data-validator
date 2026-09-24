@@ -922,6 +922,10 @@ def demo_results(variant):
     # absolute so this resolves regardless of pytest's cwd.
     for rule in external_files:
         rule["FilePath"] = str(REPO_ROOT / rule["FilePath"])
+        # The shipped demo workbooks predate ExternalFiles.CSVEncoding (FS 5.1);
+        # every demo csv is plain ASCII, so utf-8 is the correct declaration.
+        if str(rule.get("Format") or "").strip().lower() == "csv":
+            rule.setdefault("CSVEncoding", "utf-8")
 
     dummy_config = AppConfig(
         input_file="", output_file="", log_file="", custom_functions_directory="",

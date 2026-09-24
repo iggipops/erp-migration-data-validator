@@ -1,4 +1,4 @@
-# ERP Migration Data Validator — Functional Specification v2_9_r1
+# ERP Migration Data Validator — Functional Specification v2_9_r2
 
 Document history: Not retained prior to v2_9_r0, which marked the starting point for public distribution.
 
@@ -8,13 +8,14 @@ Document history: Not retained prior to v2_9_r0, which marked the starting point
 
 This Functional Specification defines the required behavior of ERP Migration Data Validator V2. It describes what the system must do, how it must behave, and what inputs and outputs are expected. It serves as the primary reference for implementation and testing.
 
-## 1.4 Version History
+## 1.2 Version History
 
 |             |          |                                              |
 |-------------|----------|----------------------------------------------|
 | **Version** | **Date** | **Description**                              |
 | v2_9_r0      | 9/8/2026  | Initial version for public distribution. |
 | v2_9_r1      | 9/19/2026 | ImportSpec now applies to csv external files only (5.4, 5.4.2, 8.3, 8.6). xlsx external files already carry native Excel types, like the primary workbook, so they need no conversion. New check in 8.3.2: an ImportSpec row whose ExternalFileSheetName points to an xlsx row in ExternalFiles is a metadata validation error, reported before any file is imported. Functional change, no BS impact. |
+| v2_9_r2      | 9/22/2026 | Catch-up: new 8.4.1 "Reading Workbook Content" was approved for v2_9_r1 but never committed — added now, along with the corrected 8.6.1 cross-reference (8.1 → 8.4.1) and the formula-preservation clarification it was meant to carry. No functional change from this part; the document now matches code already shipped in v2_9_r1_0. New for r2: ImportSpec's csv-only text-preservation default is extended to genuinely fix NULL/NA/N/A-as-text handling (8.6.1) — a literal missing-value-looking string is no longer silently treated as a missing cell; only a truly empty cell is. New required `CSVEncoding` field on ExternalFiles (5.1, 8.3.1), alongside CSVDelimiter — csv files no longer assume a fixed encoding; supported values are utf-8, utf-8-sig, cp1251, cp1252. A csv file that cannot be decoded per its declared CSVEncoding is now a named import failure (8.6.4), same handling as any other. Functional change, no BS impact. |
 
 # 2. System Overview
 
@@ -241,6 +242,7 @@ The ExternalFiles worksheet defines external reference datasets to be loaded fro
 | OriginalSheetName | Conditional  | Required when Format = xlsx. Specifies which worksheet to load from the external Excel file. Ignored for csv.                        |
 | Format            | Yes          | xlsx or csv                                                                                                                          |
 | CSVDelimiter      | Conditional  | Required when Format = csv. Supported values: comma (,) semicolon (;) pipe (\|) colon (:) space ( )                                             |
+| CSVEncoding       | Conditional  | Required when Format = csv. Supported values: `utf-8` `utf-8-sig` `cp1251` `cp1252`. Use `utf-8-sig` for files with a UTF-8 byte-order mark (common in files saved by Windows tools) — using plain `utf-8` on such a file corrupts the first column's header name. Ignored for xlsx.  |
 | Active            | Yes          | Yes or No — inactive rows are ignored completely                                                                                     |
 
 ## 5.2 ValidationRules Worksheet
@@ -655,6 +657,7 @@ For each row: if `Active` is empty — error, no further checks for that row. If
 | Format            | Must not be empty. Must be either `xlsx` or `csv` (case-insensitive).                                                                                            |
 | OriginalSheetName | Required (not empty) when Format = `xlsx`. Must reference an existing worksheet name in the external xlsx file at the given FilePath. Must be empty when Format = `csv`. |
 | CSVDelimiter      | Required (not empty) when Format = `csv`. Must be one of: comma `,` semicolon `;` pipe `\|` colon `:` space ` `.                                                 |
+| CSVEncoding       | Required (not empty) when Format = `csv`. Must be one of: `utf-8`, `utf-8-sig`, `cp1251`, `cp1252` (case-insensitive). Must be empty when Format = `xlsx`.       |
 
 **Duplicate / consistency checks across all Active = Yes rows:**
 
@@ -689,6 +692,14 @@ If the ImportSpec sheet does not exist, this subsection is skipped. For each row
 
 The input file is copied to the configured output path. If a file already exists at the output path, it is overwritten without prompting. This event is logged to the console and log file.
 
+### 8.4.1 Reading Workbook Content
+
+Every xlsx workbook the tool reads — the primary workbook and each external xlsx file — is read the same way:
+
+- **Formulas and calculated values.** The workbook is loaded twice: once as-is, so formulas are preserved in the output file, and once for the last-calculated value of each cell, which is what validation and enrichment read. If a formula cell has no calculated value, the file was never opened and saved in Excel; a warning is logged for the sheet and the cell reads as empty.
+- **Last row.** A sheet's data ends at its last row that holds a real value in any column. Rows that only carry formatting are ignored, however far down the sheet they extend. A formula counts as a value.
+- **Types.** Values are kept exactly as read: a whole number stays a whole number and a decimal stays a decimal. No number is reformatted.
+
 ## 8.5 Build Function Registry and Validation Type Registry
 
 Two of the framework's three registries (section 2.6) are built at this step. The third, the Provider Registry (section 2.6.3), is built earlier, during Step 1 (8.1) — before configuration is even read — so `ai_provider` can be validated against it during Step 2 (8.2), immediately after, well before any workbook is opened.
@@ -717,8 +728,8 @@ xlsx files keep their native Excel types and need no conversion; csv files carry
 
 ### 8.6.1 Loading
 
-- For xlsx files: the worksheet specified in `OriginalSheetName` is loaded from the external file, preserving each cell's native Excel type exactly as it is read for the primary workbook (section 8.1).
-- For csv files: the full file content is loaded as text, using the `CSVDelimiter` specified in ExternalFiles.
+- For xlsx files: the worksheet specified in `OriginalSheetName` is loaded from the external file, preserving each cell's native Excel type exactly as it is read for the primary workbook (section 8.4.1). Formulas are preserved in the output workbook, and validation reads their last-calculated values, exactly as for the primary workbook.
+- For csv files: the full file content is loaded as text, using the `CSVDelimiter` and `CSVEncoding` specified in ExternalFiles. Text that looks like a missing-value marker (e.g. `NULL`, `NA`, `N/A`) is loaded as that literal text, not as a missing value — only a genuinely empty cell is treated as missing. This matches the "no rule = imported as raw text" default already described in section 5.4.
 - Column names are stripped of leading/trailing whitespace at load time.
 
 ### 8.6.2 ImportSpec Column Conversion (csv files only)
@@ -749,7 +760,7 @@ After all imports, the output workbook contains:
 
 ### 8.6.4 Import Failures
 
-If an active external file cannot be loaded (file not found, format error, access denied, or worksheet not found for xlsx):
+If an active external file cannot be loaded (file not found, format error, access denied, worksheet not found for xlsx, or content that cannot be decoded using the declared `CSVEncoding` for csv):
 - The failure is recorded
 - Processing continues with the remaining external files
 - All validation and enrichment rules that reference this SheetName are skipped during execution

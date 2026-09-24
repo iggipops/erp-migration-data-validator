@@ -5,7 +5,9 @@ row, F-03 dtype=object — for the primary workbook and for external xlsx files.
 import logging
 import zipfile
 from datetime import datetime
+from pathlib import Path
 
+import pytest
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import PatternFill
 
@@ -115,6 +117,65 @@ def test_set_cell_value_keeps_twin_in_step(tmp_path):
     assert df["Enriched"].tolist()[0] == "x"
 
 
+# --- F-01 against a real Excel-saved file (not a hand-crafted fixture) -----
+#
+# Every case above builds its workbook with openpyxl and patches cached
+# values into the raw XML via save_with_cache() — useful for control over
+# exactly which cells have/lack a cached value, but it says nothing about
+# how a real spreadsheet application actually serializes one. This fixture
+# was opened and saved by Microsoft Excel (Online) itself, so its cached
+# values are genuinely Excel's.
+#
+# A sibling file, "Stock Balanse Check.xlsx" (no "2"), is the same
+# spreadsheet saved by LibreOffice instead of Excel — both are kept in
+# test_data/v2/ deliberately, in case the two applications' formula-caching
+# behavior ever needs comparing again.
+#
+# Neither file is copied to test_data/v2/demo/ (see release_operation_list.md
+# step 4), so both stay private-repo-only — this test is expected to skip,
+# not fail, in the public repo.
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+REAL_EXCEL_WORKBOOK = REPO_ROOT / "test_data" / "v2" / "Stock Balanse Check2.xlsx"
+
+
+@pytest.mark.skipif(
+    not REAL_EXCEL_WORKBOOK.exists(),
+    reason="real-Excel fixture (Stock Balanse Check2.xlsx) not present in "
+           "this repo — private-repo-only, see test docstring.",
+)
+def test_real_excel_file_cached_values_resolve_via_cell_value(caplog):
+    """
+    Runs a genuinely Excel-saved workbook through the real open_workbook()/
+    cell_value() code path (not plain openpyxl, not save_with_cache()'s
+    synthetic XML patcher). A representative subset of formula cells is
+    checked, not exhaustive coverage — the point is exercising the real
+    code path against a real Excel file, not covering every cell.
+    """
+    with caplog.at_level(logging.WARNING, logger="erp_migration_data_validator"):
+        wb = open_workbook(str(REAL_EXCEL_WORKBOOK))
+
+    data = wb["Data"]
+    wmsl = wb["WMSL"]
+
+    # Cached values, as Excel computed them — read via cell_value().
+    assert cell_value(data["R2"]) == "БезНомеров"
+    assert cell_value(data["S2"]) == "2-7-1-3"
+    assert cell_value(data["T2"]) == "Сборка печатной платы"
+    assert cell_value(wmsl["A2"]) == "WHS1-1-1-2"
+    assert cell_value(wmsl["A3"]) == "WHS1-1-3-2"
+
+    # Formulas themselves are preserved on the output side (F-01's other
+    # half): the cell's own .value is still the formula, not the cached
+    # result — that's only reachable through cell_value().
+    assert data["R2"].value == "=VLOOKUP(J2,Items!$A:$G,7,0)"
+    assert wmsl["A2"].value == "=B2&C2"
+
+    # None of this file's formula cells should have hit the missing-
+    # cached-value warning path — Excel cached every one of them.
+    assert not any("no cached value" in r.message for r in caplog.records)
+
+
 # --- F-02: true last row ----------------------------------------------------
 
 def test_last_data_row_ignores_formatting_only_rows():
@@ -185,7 +246,7 @@ def test_sheet_to_dataframe_keeps_ints_and_floats_as_read():
 def ext_rule(path, sheet="Ext", original="Data"):
     return {"SequenceNum": 1, "SheetName": sheet, "FilePath": str(path),
             "Format": "xlsx", "Active": "Yes", "OriginalSheetName": original,
-            "CSVDelimiter": ""}
+            "CSVDelimiter": "", "CSVEncoding": ""}
 
 
 def external_book(path, cached=True):
@@ -272,7 +333,7 @@ def test_external_csv_import_unchanged_and_mirrored_to_twin(fake_config, tmp_pat
     f = tmp_path / "items.csv"
     f.write_text("ItemId,Qty\nA1,5\n")
     rule = {"SequenceNum": 1, "SheetName": "Items", "FilePath": str(f), "Format": "csv",
-            "Active": "Yes", "CSVDelimiter": ",", "OriginalSheetName": ""}
+            "Active": "Yes", "CSVDelimiter": ",", "CSVEncoding": "utf-8", "OriginalSheetName": ""}
     Importer(wb, fake_config).import_external_files([rule], [])
     assert wb["Items"]["B2"].value == "5"               # csv stays text
     assert sheet_to_dataframe(wb["Items"])["Qty"].tolist() == ["5"]

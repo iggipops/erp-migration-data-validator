@@ -14,7 +14,7 @@ from pathlib import Path
 import pandas as pd
 from openpyxl.workbook import Workbook
 
-from config.config_loader import AppConfig
+from config.config_loader import AppConfig, SUPPORTED_CSV_ENCODINGS
 from importer.conversion import convert_date, convert_numeric, convert_integer
 from workbook.excel_utils import (
     append_row_safe, remove_sheet_if_exists, get_sheet, get_values_twin,
@@ -163,7 +163,28 @@ class Importer:
             raw_delimiter = str(rule.get("CSVDelimiter", ",") or ",").strip()
             delimiter = raw_delimiter.replace('"', '').replace("'", "").strip() or ","
             self.logger.debug(f"  CSV delimiter: '{delimiter}'")
-            df = pd.read_csv(file_path, sep=delimiter, dtype=str, engine="python")
+
+            encoding = str(rule.get("CSVEncoding", "") or "").strip().lower()
+            if encoding not in SUPPORTED_CSV_ENCODINGS:
+                raise ValueError(
+                    f"CSVEncoding is required for csv and must be one of "
+                    f"{', '.join(SUPPORTED_CSV_ENCODINGS)}, got '{encoding}'"
+                )
+            self.logger.debug(f"  CSV encoding: '{encoding}'")
+
+            # Text is preserved as-is (FS 8.6.1): with keep_default_na=False and
+            # na_values=[""], literal NULL / NA / N/A / None survive as text and
+            # only a truly empty cell reads as missing.
+            try:
+                df = pd.read_csv(
+                    file_path, sep=delimiter, dtype=str, engine="python",
+                    encoding=encoding, keep_default_na=False, na_values=[""],
+                )
+            except UnicodeDecodeError as exc:
+                raise ValueError(
+                    f"cannot decode '{file_path}' using the declared CSVEncoding "
+                    f"'{encoding}' ({exc.reason} at byte {exc.start})"
+                ) from exc
 
         else:
             raise ValueError(f"Unsupported Format: {file_type}")
