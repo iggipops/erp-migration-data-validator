@@ -101,36 +101,80 @@ def test_invalid_color(make_workbook, sheet_factory):
     assert any("Color" in e for e in errors)
 
 
-def test_empty_color_is_valid(make_workbook, sheet_factory):
+def test_empty_color_is_error_for_validation_rules(make_workbook, sheet_factory):
+    """FS 8.7.3: ValidationRules.Color is required."""
     wb = build_wb(make_workbook, sheet_factory, vr_rows=[
         [1, "R1", "Rule", "Items", "ItemId", "EMPTY", "ERROR", "", "Yes", "", "", ""],
     ])
     errors = mv(wb).validate()
-    assert errors == []
+    assert errors == ["ValidationRules row 2: Color is empty"]
 
 
-def test_color_hex_with_hash_prefix_valid(make_workbook, sheet_factory):
+def test_empty_color_on_inactive_validation_rule_is_not_checked(make_workbook, sheet_factory):
     wb = build_wb(make_workbook, sheet_factory, vr_rows=[
-        [1, "R1", "Rule", "Items", "ItemId", "EMPTY", "ERROR", "#00FF00", "Yes", "", "", ""],
+        [1, "R1", "Rule", "Items", "ItemId", "EMPTY", "ERROR", "", "No", "", "", ""],
     ])
     errors = mv(wb).validate()
     assert errors == []
 
 
-def test_color_hex_3_digit_shorthand_valid(make_workbook, sheet_factory):
+@pytest.mark.parametrize("color", ["RED", "red", "00FF00", "00ff00", "PURPLE"])
+def test_valid_color_formats_for_validation_rules(make_workbook, sheet_factory, color):
+    config = FakeConfig()
+    config.color_map = {"RED": "FF0000", "PURPLE": "7030A0"}
     wb = build_wb(make_workbook, sheet_factory, vr_rows=[
-        [1, "R1", "Rule", "Items", "ItemId", "EMPTY", "ERROR", "0F0", "Yes", "", "", ""],
+        [1, "R1", "Rule", "Items", "ItemId", "EMPTY", "ERROR", color, "Yes", "", "", ""],
     ])
-    errors = mv(wb).validate()
+    errors = mv(wb, config=config).validate()
     assert errors == []
 
 
-def test_color_hex_3_digit_shorthand_with_hash_valid(make_workbook, sheet_factory):
+@pytest.mark.parametrize("color", ["#00FF00", "0F0", "#0F0", "00FF0", "00FF000", "GG0000"])
+def test_invalid_color_formats_for_validation_rules(make_workbook, sheet_factory, color):
+    """FS 8.7.3: '#' prefix and 3-digit shorthand are no longer accepted."""
     wb = build_wb(make_workbook, sheet_factory, vr_rows=[
-        [1, "R1", "Rule", "Items", "ItemId", "EMPTY", "ERROR", "#0F0", "Yes", "", "", ""],
+        [1, "R1", "Rule", "Items", "ItemId", "EMPTY", "ERROR", color, "Yes", "", "", ""],
     ])
     errors = mv(wb).validate()
-    assert errors == []
+    assert len(errors) == 1
+    assert errors[0].startswith("ValidationRules row 2: Color ")
+
+
+def test_empty_color_is_valid_for_enrichment_rules(make_workbook, sheet_factory):
+    """FS 8.7.2: EnrichmentRules.Color is optional."""
+    wb = build_wb(
+        make_workbook, sheet_factory, vr_rows=[],
+        er_rows=[[1, "E1", "Enrich", "Items", "NewCol", "counter", "", "Yes", ""]],
+    )
+    wb_mv = mv(wb)
+    wb_mv.registry = FakeRegistry(known_fns={"counter"})
+    assert wb_mv.validate() == []
+
+
+@pytest.mark.parametrize("color", ["RED", "00FF00"])
+def test_valid_color_formats_for_enrichment_rules(make_workbook, sheet_factory, color):
+    wb = build_wb(
+        make_workbook, sheet_factory, vr_rows=[],
+        er_rows=[[1, "E1", "Enrich", "Items", "NewCol", "counter", "", "Yes", color]],
+    )
+    wb_mv = mv(wb)
+    wb_mv.registry = FakeRegistry(known_fns={"counter"})
+    assert wb_mv.validate() == []
+
+
+@pytest.mark.parametrize("color", ["NOTACOLOR", "#00FF00", "0F0", "#0F0"])
+def test_invalid_color_formats_for_enrichment_rules(make_workbook, sheet_factory, color):
+    """FS 8.7.2: when non-empty, EnrichmentRules.Color has the same format
+    rule as ValidationRules.Color."""
+    wb = build_wb(
+        make_workbook, sheet_factory, vr_rows=[],
+        er_rows=[[1, "E1", "Enrich", "Items", "NewCol", "counter", "", "Yes", color]],
+    )
+    wb_mv = mv(wb)
+    wb_mv.registry = FakeRegistry(known_fns={"counter"})
+    errors = wb_mv.validate()
+    assert len(errors) == 1
+    assert errors[0].startswith("EnrichmentRules row 2: Color ")
 
 
 def test_sheetname_not_in_workbook(make_workbook, sheet_factory):

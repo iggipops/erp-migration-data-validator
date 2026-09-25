@@ -192,8 +192,8 @@ class MetadataValidator:
                     f'Severity "{severity}" must be ERROR or WARNING'
                 )
 
-            # --- Color ---
-            self._check_color(r, row, VALIDATION_RULES_SHEET)
+            # --- Color (required for ValidationRules, FS 8.7.3) ---
+            self._check_color(r, row, VALIDATION_RULES_SHEET, required=True)
 
             # --- CustomFunctionName must exist in registry ---
             if vtype == "CUSTOM":
@@ -487,6 +487,9 @@ class MetadataValidator:
                         f'Enrichment rules must write to new columns only to prevent overwriting existing data.'
                     )
 
+            # --- Color (optional for EnrichmentRules, FS 8.7.2) ---
+            self._check_color(r, row, ENRICHMENT_RULES_SHEET, required=False)
+
             # --- CustomFunctionName ---
             fn_name = str(r.get("CustomFunctionName", "")).strip()
             if is_empty(fn_name):
@@ -565,20 +568,29 @@ class MetadataValidator:
         else:
             collector.append(str(value).strip().lower())
 
-    def _check_color(self, r: dict, row: int, sheet_name: str) -> None:
+    def _check_color(
+        self, r: dict, row: int, sheet_name: str, required: bool
+    ) -> None:
+        """
+        Color must be a known name (built-in or config predefined_colors) or a
+        plain 6-digit hex code with no "#" (FS 8.7.2 / 8.7.3). "#RRGGBB" and
+        3-digit shorthand are rejected here so the fill-writing step can use
+        the value as-is. Empty is an error only when required.
+        """
         color = str(r.get("Color", "") or "").strip().upper()
         if not color:
+            if required:
+                self.errors.append(f'{sheet_name} row {row}: Color is empty')
             return
 
-        hex_candidate = color[1:] if color.startswith("#") else color
-        valid_hex = re.match(r'^[0-9A-F]{3}([0-9A-F]{3})?$', hex_candidate)
         if (
             color not in self.config.color_map
-            and not valid_hex
+            and not re.fullmatch(r'[0-9A-F]{6}', color)
         ):
             self.errors.append(
                 f'{sheet_name} row {row}: '
-                f'Color "{color}" is not a known name or valid hex code (#RRGGBB or #RGB)'
+                f'Color "{color}" is not a known color name or a 6-digit hex '
+                f'code without "#" (e.g. FF0000)'
             )
 
     def _check_unique(self, values: list, sheet_name: str, col: str) -> None:

@@ -1,3 +1,6 @@
+import pytest
+from openpyxl import load_workbook
+
 from engine.enrichment_engine import EnrichmentEngine
 
 
@@ -106,3 +109,45 @@ def test_function_arguments_quoted_space_separator_preserved(make_workbook, shee
     ws = wb["Items"]
     assert ws.cell(row=2, column=3).value == "A Smith"
     assert ws.cell(row=3, column=3).value == "B Jones"
+
+
+def _saved_column_fills(wb, tmp_path, col_idx, rows):
+    path = tmp_path / "out.xlsx"
+    wb.save(path)
+    ws = load_workbook(path)["Items"]
+    return [ws.cell(row=r, column=col_idx).fill for r in range(1, rows + 1)]
+
+
+@pytest.mark.parametrize("color", ["", None, "   "])
+def test_blank_color_applies_no_fill_to_generated_column(
+    make_workbook, sheet_factory, fake_config, fn_registry, tmp_path, color
+):
+    """FS 8.8.1: blank EnrichmentRules.Color -> no fill on header or data cells."""
+    wb = make_workbook()
+    sheet_factory(wb, "Items", [["ItemId"], ["A1"], ["A2"]])
+    engine = EnrichmentEngine(wb, fake_config, fn_registry)
+    stats = engine.execute([make_rule(Color=color)])
+    assert stats[0]["status"] == "executed"
+    for fill in _saved_column_fills(wb, tmp_path, col_idx=2, rows=3):
+        assert fill.fill_type is None
+
+
+@pytest.mark.parametrize("color, expected_rgb", [
+    ("RED",    "FF0000"),
+    ("PURPLE", "7030A0"),
+    ("00FF00", "00FF00"),
+])
+def test_color_fills_generated_header_and_data_cells(
+    make_workbook, sheet_factory, fake_config, fn_registry, tmp_path, color, expected_rgb
+):
+    """FS 8.8.1: non-blank EnrichmentRules.Color fills header and data cells,
+    resolved the same way as ValidationRules.Color."""
+    fake_config.color_map = {**fake_config.color_map, "PURPLE": "7030A0"}
+    wb = make_workbook()
+    sheet_factory(wb, "Items", [["ItemId"], ["A1"], ["A2"]])
+    engine = EnrichmentEngine(wb, fake_config, fn_registry)
+    stats = engine.execute([make_rule(Color=color)])
+    assert stats[0]["status"] == "executed"
+    for fill in _saved_column_fills(wb, tmp_path, col_idx=2, rows=3):
+        assert fill.fill_type == "solid"
+        assert fill.start_color.rgb == "00" + expected_rgb

@@ -1,3 +1,6 @@
+import pytest
+from openpyxl import load_workbook
+
 from output.issues_writer import IssuesWriter, ISSUES_HEADERS
 
 
@@ -77,3 +80,35 @@ def test_record_highlights_cell(make_workbook, fake_config):
     iw.record(cell=cell, rule=rule, sheet_name="Items", column_name="ItemId",
                row_number=2, cell_content="A1")
     assert cell.fill.start_color.rgb.endswith("FF0000")
+
+
+@pytest.mark.parametrize("color, expected_rgb", [
+    ("RED",    "FF0000"),   # built-in name
+    ("red",    "FF0000"),   # names are case-insensitive
+    ("PURPLE", "7030A0"),   # config predefined_colors name
+    ("00FF00", "00FF00"),   # plain 6-digit hex
+    ("00ff00", "00FF00"),   # lowercase hex
+])
+def test_record_fill_for_every_color_form_validation_allows(
+    make_workbook, fake_config, tmp_path, color, expected_rgb
+):
+    """FS 8.7.3 guarantees ValidationRules.Color is a known name or a plain
+    6-digit hex by the time a rule reaches the IssuesWriter. _get_fill must
+    turn each of those forms into a solid fill of the right color that
+    survives a save/load round-trip."""
+    fake_config.color_map = {**fake_config.color_map, "PURPLE": "7030A0"}
+    wb = make_workbook()
+    sheet = wb.create_sheet("Items")
+    sheet.append(["ItemId"])
+    sheet.append(["A1"])
+    iw = IssuesWriter(wb, fake_config)
+    rule = {"RuleCode": "R1", "RuleName": "Rule", "Severity": "ERROR", "Color": color}
+    iw.record(cell=sheet.cell(row=2, column=1), rule=rule, sheet_name="Items",
+              column_name="ItemId", row_number=2, cell_content="A1")
+
+    path = tmp_path / "out.xlsx"
+    wb.save(path)
+    fill = load_workbook(path)["Items"].cell(row=2, column=1).fill
+    assert fill.fill_type == "solid"
+    assert fill.start_color.rgb == "00" + expected_rgb
+    assert fill.end_color.rgb == "00" + expected_rgb

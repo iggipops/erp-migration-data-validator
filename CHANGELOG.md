@@ -16,6 +16,48 @@ it.
 
 ## [Unreleased]
 
+## [v2_10_r0_0] - 2026-09-25
+
+Implements FS v2_10_r0.
+
+### Changed
+
+- `ValidationRules.Color` is now required (FS 8.7.3). An active row with an
+  empty Color is a metadata error. Before this, an empty Color passed
+  validation and then crashed the IssuesWriter the first time the rule
+  flagged a cell. **Existing workbooks with blank ValidationRules Color
+  cells must fill them in.**
+- The accepted Color format is tighter for both rules sheets (FS 8.7.2,
+  8.7.3). Color must be a built-in color name, a name from config
+  `predefined_colors`, or a plain 6-digit hex code with no `#` (e.g.
+  `FF0000`). `#RRGGBB`, `RGB` and `#RGB` were accepted before and are now
+  metadata errors. openpyxl rejects all three when it writes the fill, so
+  they previously got through validation and crashed at run time.
+  **Existing workbooks using these forms must switch to `RRGGBB`.** Config
+  `predefined_colors` values are unaffected: a leading `#` there is still
+  accepted.
+
+### Fixed
+
+- `EnrichmentRules.Color` was not validated at all, although FS 8.7.1
+  already listed Color as a common check. It is now checked with the same
+  format rule when non-empty and stays optional (FS 8.7.2). Before this, an
+  invalid value failed the enrichment at run time, after the generated
+  column had already been written.
+
+## [v2_9_r2_1] - 2026-09-24
+
+Code-only round against FS v2_9_r2; no behavior change.
+
+### Changed
+
+- Added `pyproject.toml` as the source of truth for dependency ranges, and
+  brought `requirements.txt` and `src/v2/requirements-dev.txt` (used by CI)
+  in line with it: `pandas>=3.0.3,<4`, `openpyxl>=3.1.5`, `pyyaml>=6.0.3`,
+  `pytest>=9.1.1`. Floors are the versions verified against the full suite;
+  pandas is capped below 4 so a future major is a deliberate, tested change.
+  `requires-python` is `>=3.14`, the only interpreter tested.
+
 ## [v2_9_r2_0] - 2026-09-24
 
 Implements FS v2_9_r2.
