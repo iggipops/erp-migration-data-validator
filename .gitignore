@@ -6,8 +6,8 @@ __pycache__/
 config.yaml
 config*.yaml
 !config.example.yaml
-!config_ax.example.yaml
 !config_universal.example.yaml
+!config_ax.example.yaml
 .pytest_cache/
 .vscode/
 .idea/

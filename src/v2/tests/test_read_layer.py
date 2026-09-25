@@ -131,9 +131,8 @@ def test_set_cell_value_keeps_twin_in_step(tmp_path):
 # test_data/v2/ deliberately, in case the two applications' formula-caching
 # behavior ever needs comparing again.
 #
-# Neither file is copied to test_data/v2/demo/ (see release_operation_list.md
-# step 4), so both stay private-repo-only — this test is expected to skip,
-# not fail, in the public repo.
+# Neither file is in test_data/v2/demo/, so both stay private-repo-only —
+# this test is expected to skip, not fail, in the public repo.
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 REAL_EXCEL_WORKBOOK = REPO_ROOT / "test_data" / "v2" / "Stock Balanse Check2.xlsx"

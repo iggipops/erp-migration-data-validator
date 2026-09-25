@@ -16,6 +16,19 @@ it.
 
 ## [Unreleased]
 
+## [v2_10_r0_1] - 2026-09-25
+
+Code-only round against FS v2_10_r0; no behavior change.
+
+### Changed
+
+- CI workflow (`.github/workflows/tests.yml`) now runs with read-only
+  repository permissions (`permissions: contents: read`).
+- `.gitignore`: two `!config_*.example.yaml` lines reordered; `desktop.ini`
+  stays ignored. No change in what is ignored.
+- Reworded a comment in `src/v2/tests/test_read_layer.py` that referred to
+  an internal document.
+
 ## [v2_10_r0_0] - 2026-09-25
 
 Implements FS v2_10_r0.
