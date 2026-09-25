@@ -5,7 +5,7 @@ from config.config_loader import AppConfig
 from registry.function_registry import FunctionRegistry
 from workbook.excel_utils import (
     get_headers, sheet_to_dataframe, get_sheet, find_column_index, normalize_string,
-    set_cell_value,
+    set_cell_value, last_data_column,
 )
 from utils.logger import get_logger
 
@@ -110,7 +110,7 @@ class EnrichmentEngine:
         col_idx = find_column_index(headers, target_column)
         if col_idx is None:
             # New column — append after last used column
-            col_idx = sheet.max_column + 1
+            col_idx = last_data_column(sheet) + 1
             set_cell_value(sheet, 1, col_idx, target_column)
 
         for i, value in enumerate(result):

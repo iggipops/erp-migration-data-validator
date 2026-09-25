@@ -154,6 +154,21 @@ def last_data_row(sheet: Worksheet) -> int:
     return last
 
 
+def last_data_column(sheet: Worksheet) -> int:
+    """
+    1-based number of the last column of `sheet` holding a real value (F-02),
+    or 0 for an empty sheet. openpyxl's max_column also counts columns that
+    only carry formatting or a deleted value, so it can run far past the data.
+    A formula cell counts as a real value. Scanned per sheet, not per row.
+    """
+    last = 0
+    for row in sheet.iter_rows(values_only=True):
+        for idx, v in enumerate(row, start=1):
+            if idx > last and v is not None and str(v).strip() != "":
+                last = idx
+    return last
+
+
 # ---------------------------------------------------------------------------
 # Sheet helpers
 # ---------------------------------------------------------------------------

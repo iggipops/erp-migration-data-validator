@@ -16,6 +16,19 @@ it.
 
 ## [Unreleased]
 
+## [v2_10_r0_2] - 2026-09-25
+
+Code-only round against FS v2_10_r0.
+
+### Fixed
+
+- Enrichment rules that create a new column now place it right after the
+  last column holding a real value. Before this, the position came from
+  openpyxl's `max_column`, which also counts formatting-only columns, so
+  the new column could land far to the right of the data (same bug class
+  as F-02's last-row fix). New helper `last_data_column()` in
+  `workbook/excel_utils.py`.
+
 ## [v2_10_r0_1] - 2026-09-25
 
 Code-only round against FS v2_10_r0; no behavior change.

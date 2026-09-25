@@ -27,6 +27,23 @@ def test_creates_new_column_with_function_output(make_workbook, sheet_factory, f
     assert ws.cell(row=3, column=2).value == 2
 
 
+def test_new_column_placed_after_last_data_column_not_formatting(
+    make_workbook, sheet_factory, fake_config, fn_registry
+):
+    # F-02 for columns: a formatting-only cell far to the right inflates
+    # max_column; the new column must still land right after the data.
+    from openpyxl.styles import PatternFill
+    wb = make_workbook()
+    sheet_factory(wb, "Items", [["ItemId"], ["A1"], ["A2"]])
+    ws = wb["Items"]
+    ws["J1"].fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+    assert ws.max_column == 10
+    EnrichmentEngine(wb, fake_config, fn_registry).execute([make_rule()])
+    assert ws.cell(row=1, column=2).value == "Seq"
+    assert ws.cell(row=3, column=2).value == 2
+    assert ws.cell(row=1, column=11).value is None
+
+
 def test_inactive_rule_skipped(make_workbook, sheet_factory, fake_config, fn_registry):
     wb = make_workbook()
     sheet_factory(wb, "Items", [["ItemId"], ["A1"]])

@@ -14,7 +14,7 @@ from openpyxl.styles import PatternFill
 from importer.importer import Importer
 from validators.builtin import empty, numeric
 from workbook.excel_utils import (
-    cell_value, last_data_row, open_workbook, set_cell_value, sheet_to_dataframe,
+    cell_value, last_data_column, last_data_row, open_workbook, set_cell_value, sheet_to_dataframe,
 )
 
 RED = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
@@ -199,6 +199,29 @@ def test_last_data_row_edge_cases():
     assert last_data_row(ws) == 4
     ws["A6"] = "=1+1"                                   # a formula counts
     assert last_data_row(ws) == 6
+
+
+def test_last_data_column_ignores_formatting_only_columns():
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Id", "Name"])
+    ws.append(["A1", "x"])
+    ws["Z1"].fill = RED                    # formatting only: max_column becomes 26
+    assert ws.max_column == 26
+    assert last_data_column(ws) == 2
+
+
+def test_last_data_column_edge_cases():
+    wb = Workbook()
+    ws = wb.active
+    assert last_data_column(ws) == 0                    # empty sheet
+    ws["A1"] = "h"
+    ws["E1"] = "   "                                    # whitespace is not a value
+    assert last_data_column(ws) == 1
+    ws["D4"] = 0                                        # zero is a value; found in another row
+    assert last_data_column(ws) == 4
+    ws["F2"] = "=1+1"                                   # a formula counts
+    assert last_data_column(ws) == 6
 
 
 def test_validators_skip_phantom_trailing_rows(fake_config, issues_writer_factory):

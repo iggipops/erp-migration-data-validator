@@ -7,4 +7,4 @@ code-only change rounds against that same FS version (resets to 0
 whenever N, L, or K changes).
 """
 
-__version__ = "v2_10_r0_1"
+__version__ = "v2_10_r0_2"
