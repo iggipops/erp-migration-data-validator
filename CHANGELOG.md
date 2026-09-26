@@ -16,6 +16,20 @@ it.
 
 ## [Unreleased]
 
+## [v2_10_r0_3] - 2026-09-26
+
+Code-only round against FS v2_10_r0.
+
+### Removed
+
+- `src/v2/validators/helpers.py` — unused module; its only function,
+  `iter_data_rows`, was never called.
+
+### Changed
+
+- `MetadataValidator.__init__` no longer assigns `config`, `registry`,
+  and `errors` twice. No behavior change.
+
 ## [v2_10_r0_2] - 2026-09-25
 
 Code-only round against FS v2_10_r0.

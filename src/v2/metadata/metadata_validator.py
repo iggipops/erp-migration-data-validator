@@ -43,12 +43,9 @@ class MetadataValidator:
     ):
         self.workbook       = workbook
         self.config         = config
-        self.registry       = registry
+        self.registry       = registry   # FunctionRegistry — for CustomFunctionName checks
         self.vtype_registry = vtype_registry
-        self.errors         = []
-        self.config   = config
-        self.registry = registry   # FunctionRegistry — for CustomFunctionName checks
-        self.logger   = get_logger()
+        self.logger         = get_logger()
         self.errors: list[str] = []
         # SheetName values that failed external-file import (FS 8.5.4) —
         # rows depending on these are skipped, not raised as metadata errors.
